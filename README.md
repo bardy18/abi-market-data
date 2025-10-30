@@ -164,7 +164,7 @@ ABIMarketData/
 
 ### Computer Vision Pipeline
 
-1. **Window Capture** - Screenshots game window at 2-second intervals
+1. **Window Capture** - User-triggered capture via preview click (live preview shown)
 2. **Category Detection** - Identifies orange-highlighted menu item via HSV color detection
 3. **Grid Detection** - Finds item cards using contour detection
 4. **Visibility Filter** - Only captures fully visible items (name + price)
