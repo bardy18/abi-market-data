@@ -2,6 +2,7 @@
 """
 Continuous capture mode - takes screenshots while user navigates.
 Press SPACE to start/stop, ESC to finish and save.
+Uses global hotkeys - works even when preview window doesn't have focus.
 """
 import cv2
 import sys
@@ -10,6 +11,7 @@ import time
 import json
 import pyautogui
 import numpy as np
+import keyboard
 from datetime import datetime
 from pathlib import Path
 
@@ -72,10 +74,11 @@ def continuous_capture():
     print("  Q     - Quit without saving")
     print("\nInstructions:")
     print("  1. Start capture with SPACE")
-    print("  2. Navigate categories and scroll at your own pace")
-    print("  3. Watch for green borders on newly captured items")
-    print("  4. Pause briefly on each screen so items are fully visible")
-    print("  5. Press ESC when done to save all captured items")
+    print("  2. Click and navigate in the game while pressing C to capture")
+    print("  3. Hotkeys work globally - no need to click back to preview window!")
+    print("  4. Watch for green borders on newly captured items")
+    print("  5. Pause briefly on each screen so items are fully visible")
+    print("  6. Press ESC when done to save all captured items")
     print("\n" + "="*60)
     print("\nStarting in 3 seconds...")
     time.sleep(3)
@@ -125,6 +128,37 @@ def continuous_capture():
                (210, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     cv2.imshow('ABI Market Capture', init_screen)
     
+    # Global hotkey flags (modified by keyboard callbacks)
+    quit_requested = False
+    save_and_exit = False
+    toggle_capture_requested = False
+    capture_requested = False
+    
+    # Setup global hotkey handlers (work even when window doesn't have focus)
+    def on_space():
+        nonlocal toggle_capture_requested
+        toggle_capture_requested = True
+    
+    def on_c():
+        nonlocal capture_requested
+        capture_requested = True
+    
+    def on_esc():
+        nonlocal save_and_exit
+        save_and_exit = True
+    
+    def on_q():
+        nonlocal quit_requested
+        quit_requested = True
+    
+    # Register global hotkeys
+    keyboard.on_press_key('space', lambda _: on_space())
+    keyboard.on_press_key('c', lambda _: on_c())
+    keyboard.on_press_key('esc', lambda _: on_esc())
+    keyboard.on_press_key('q', lambda _: on_q())
+    
+    print("\n[INFO] Global hotkeys registered - works even when clicking in game!")
+    
     try:
         # For manual capture control
         should_capture = False
@@ -138,25 +172,31 @@ def continuous_capture():
         border_display_duration = 3.0  # Show borders for 3 seconds after capture
         
         while True:
-            # Check keyboard
-            key = cv2.waitKey(30) & 0xFF  # ~33 FPS for responsive preview
-            
-            if key == ord('q'):
+            # Check global hotkey flags
+            if quit_requested:
                 print("\n[!] Cancelled by user")
                 break
-            elif key == ord(' '):
+            
+            if save_and_exit:
+                print("\n[OK] Finishing capture...")
+                break
+            
+            if toggle_capture_requested:
+                toggle_capture_requested = False
                 capturing = not capturing
                 if capturing:
                     print("\n[OK] READY - Press C to capture each screen")
                     print("     Navigate and scroll at your own pace")
                 else:
                     print("\n[||] PAUSED - Press SPACE to resume")
-            elif key == 27:  # ESC
-                print("\n[OK] Finishing capture...")
-                break
-            elif key == ord('c'):  # C key to capture
+            
+            if capture_requested:
+                capture_requested = False
                 if capturing:
                     should_capture = True
+            
+            # Keep window responsive (not for keyboard input - that's handled by global hotkeys)
+            cv2.waitKey(1)
             
             # Always take screenshot for preview
             try:
@@ -363,6 +403,8 @@ def continuous_capture():
         print("\n[!] Interrupted by user")
     
     finally:
+        # Clean up global hotkeys
+        keyboard.unhook_all()
         cv2.destroyAllWindows()
     
     # Save results
@@ -438,4 +480,5 @@ def continuous_capture():
 
 if __name__ == '__main__':
     continuous_capture()
+
 
