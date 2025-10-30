@@ -1,6 +1,7 @@
 """ABI Market Trading App - Main GUI application."""
 import sys
 import os
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
@@ -226,7 +227,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
 def main() -> int:
     app = QtWidgets.QApplication(sys.argv)
-    win = MainWindow('trading_app/config.yaml')
+    # Load config relative to this script's location
+    config_path = Path(__file__).parent / 'config.yaml'
+    win = MainWindow(str(config_path))
     win.resize(1100, 700)
     win.show()
     return app.exec()

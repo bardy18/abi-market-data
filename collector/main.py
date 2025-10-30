@@ -81,8 +81,9 @@ def continuous_capture():
     print("\nStarting in 3 seconds...")
     time.sleep(3)
     
-    # Load config
-    config = load_config('collector/config.yaml')
+    # Load config (relative to this script's location)
+    config_path = Path(__file__).parent / 'config.yaml'
+    config = load_config(str(config_path))
     
     # Load item name mapping for deduplication by display name
     print("Loading item name mappings...")
