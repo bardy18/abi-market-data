@@ -227,7 +227,7 @@ The system uses a two-tier naming approach, plus an optional GUI display name:
 Notes:
 - The Trading App shows the Display Name if present; otherwise it shows the Clean Name.
 - Display names are mapped in `mappings/display_mappings.json` or set via double-click in the GUI.
-- Backend tracking and grouping always use the exact `itemKey` (category + clean name, with optional `#hash`).
+- Backend tracking and grouping always use the exact `itemKey` (category + clean name + required `#hash`).
 
 ### How It Works
 
