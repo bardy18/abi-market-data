@@ -159,6 +159,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.price_max.textChanged.connect(self.refresh_view)
         self.table.clicked.connect(self._on_table_clicked)
         self.table.doubleClicked.connect(self._on_table_double_clicked)
+        # Update selection via keyboard navigation as well
+        # Note: selectionModel is available after model is set in DataTable
+        self.table.selectionModel().currentChanged.connect(self._on_table_current_changed)
 
         # Initial load
         self.refresh_view()
@@ -279,7 +282,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.thumb_label.setText('')
                 # Find rows for this item
                 if not df.empty and 'thumbPath' in df.columns:
-                    dfi = df[df['itemKey'] == item_key] if 'itemKey' in df.columns else df[df['itemName'] == friendly_name]
+                    dfi = df[df['itemKey'] == item_key] if 'itemKey' in df.columns else df[df['itemName'] == display_name]
                     if not dfi.empty:
                         # Gather candidate paths (skip NaN and empty strings)
                         # Build candidate paths using derived thumbPath only
@@ -315,6 +318,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.thumb_label.setText('')
             except Exception:
                 self.thumb_label.setText('')
+
+    def _on_table_current_changed(self, current: QtCore.QModelIndex, prev: QtCore.QModelIndex) -> None:
+        # Mirror click handling for keyboard selection changes
+        self._on_table_clicked(current)
 
     def _update_alerts(self) -> None:
         self.alerts_list.clear()

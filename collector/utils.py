@@ -118,28 +118,85 @@ def preprocess_image(img: np.ndarray, cfg: Dict[str, Any]) -> np.ndarray:
 
 def compute_thumbnail_hash(img_bgr: np.ndarray) -> str:
     """
-    Compute a perceptual hash (aHash) of the provided thumbnail image.
-    Returns a hex string (16 chars for 64-bit hash).
+    Compute a robust thumbnail fingerprint by combining:
+      - aHash (8x8 luminance)  -> 16 hex
+      - dHash (8x8 horizontal) -> 16 hex
+      - Mean HSV signature     -> 6 hex (H,S,V each 1 byte)
+
+    Returns a hex string (38 chars). Older snapshots may contain 16-char hashes;
+    downstream code only treats this as an opaque filename/key, so longer is fine.
     """
     if img_bgr is None or img_bgr.size == 0:
         return ""
+
+    # Guard against degenerate dims
+    h, w = img_bgr.shape[:2]
+    if h == 0 or w == 0:
+        return ""
+
+    # Slightly crop 1px border to reduce UI-frame influence, if possible
+    if h > 4 and w > 4:
+        img_bgr = img_bgr[1:h-1, 1:w-1]
+
+    # Grayscale conversion
     try:
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     except Exception:
         gray = img_bgr if len(img_bgr.shape) == 2 else cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-    small = cv2.resize(gray, (8, 8), interpolation=cv2.INTER_AREA)
-    avg = float(small.mean())
-    bits = (small > avg).astype(np.uint8).flatten()
-    # Pack bits into 64-bit integer
-    value = 0
-    for b in bits:
-        value = (value << 1) | int(b)
-    return f"{value:016x}"
+
+    # aHash (average hash) 8x8
+    a_small = cv2.resize(gray, (8, 8), interpolation=cv2.INTER_AREA)
+    a_avg = float(a_small.mean())
+    a_bits = (a_small > a_avg).astype(np.uint8).flatten()
+    a_val = 0
+    for b in a_bits:
+        a_val = (a_val << 1) | int(b)
+    a_hex = f"{a_val:016x}"
+
+    # dHash (difference hash) 8x8 from 9x8 resized
+    d_small = cv2.resize(gray, (9, 8), interpolation=cv2.INTER_AREA)
+    diff = d_small[:, 1:] > d_small[:, :-1]
+    d_bits = diff.astype(np.uint8).flatten()
+    d_val = 0
+    for b in d_bits:
+        d_val = (d_val << 1) | int(b)
+    d_hex = f"{d_val:016x}"
+
+    # Mean HSV signature, emphasizing high-saturation regions (labels/colors)
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    H, S, V = cv2.split(hsv)
+    # Focus on pixels with noticeable saturation
+    sat_thresh = 60
+    mask = (S >= sat_thresh)
+    if np.any(mask):
+        h_vals = H[mask]
+        s_vals = S[mask]
+        v_vals = V[mask]
+    else:
+        h_vals = H
+        s_vals = S
+        v_vals = V
+    h_mean = int(round(np.clip(h_vals.mean() * (255.0/180.0), 0, 255)))
+    s_mean = int(round(np.clip(s_vals.mean(), 0, 255)))
+    v_mean = int(round(np.clip(v_vals.mean(), 0, 255)))
+    hsv_hex = f"{h_mean:02x}{s_mean:02x}{v_mean:02x}"
+
+    return a_hex + d_hex + hsv_hex
 
 
 def hamming_distance_hex(a: str, b: str) -> Optional[int]:
-    """Hamming distance between two equal-length hex strings (bitwise)."""
+    """Bitwise Hamming distance between two hex strings (compare up to min length)."""
     if not a or not b:
+        return None
+    try:
+        n = min(len(a), len(b))
+        if n == 0:
+            return None
+        va = int(a[:n], 16)
+        vb = int(b[:n], 16)
+        x = va ^ vb
+        return int(bin(x).count('1'))
+    except Exception:
         return None
 
 
@@ -151,10 +208,21 @@ def compute_color_signature(img_bgr: np.ndarray) -> Dict[str, Any]:
         return {"h_mean": 0.0, "s_mean": 0.0, "v_mean": 0.0, "h_bin": 0}
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     h, s, v = cv2.split(hsv)
-    h_mean = float(h.mean())  # 0..180 in OpenCV
-    s_mean = float(s.mean())  # 0..255
-    v_mean = float(v.mean())  # 0..255
-    # Quantize hue into 12 bins (each 15 units)
+    # Emphasize high-saturation pixels for color decisions
+    sat_thresh = 60
+    mask = (s >= sat_thresh)
+    if np.any(mask):
+        h_sel = h[mask]
+        s_sel = s[mask]
+        v_sel = v[mask]
+    else:
+        h_sel = h
+        s_sel = s
+        v_sel = v
+    h_mean = float(h_sel.mean())  # 0..180 in OpenCV
+    s_mean = float(s_sel.mean())  # 0..255
+    v_mean = float(v_sel.mean())  # 0..255
+    # Quantize hue into 12 bins (each 15 units) using mean on selected pixels
     h_bin = int(h_mean // 15) % 12
     return {"h_mean": h_mean, "s_mean": s_mean, "v_mean": v_mean, "h_bin": h_bin}
 

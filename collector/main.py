@@ -335,6 +335,7 @@ def continuous_capture():
                     os.makedirs(thumb_dir, exist_ok=True)
                     thumb_path = ""
                     h, w = thumb_img.shape[:2]
+                    chosen_hash = thumb_hash
                     if h > 0 and w > 0 and thumb_hash:
                         # If a very similar hash already exists, reuse that filename
                         existing_files = []
@@ -346,7 +347,22 @@ def continuous_capture():
                         for fn in existing_files:
                             stem = os.path.splitext(fn)[0]
                             dist = hamming_distance_hex(thumb_hash, stem)
-                            if dist is not None and dist <= 8:
+                            if dist is None:
+                                continue
+                            # If both are composite hashes (>=22 hex), compare HSV suffix (last 6 hex) to avoid cross-color reuse
+                            hsv_ok = True
+                            try:
+                                if len(thumb_hash) >= 22 and len(stem) >= 22:
+                                    hsv_a = thumb_hash[-6:]
+                                    hsv_b = stem[-6:]
+                                    ha, sa, va = int(hsv_a[0:2], 16), int(hsv_a[2:4], 16), int(hsv_a[4:6], 16)
+                                    hb, sb, vb = int(hsv_b[0:2], 16), int(hsv_b[2:4], 16), int(hsv_b[4:6], 16)
+                                    # Hue tolerance tighter; saturation must also be reasonably close
+                                    hsv_ok = (abs(ha - hb) <= 15) and (abs(sa - sb) <= 40)
+                            except Exception:
+                                hsv_ok = True
+                            # Tighten hamming threshold to reduce accidental reuse
+                            if dist <= 4 and hsv_ok:
                                 chosen_hash = stem
                                 break
                         # Filename is the (possibly adjusted) hash
@@ -361,6 +377,8 @@ def continuous_capture():
                             except Exception:
                                 out_full = ""
                         thumb_path = out_full
+                    # Use the actually chosen filename hash as the canonical thumb hash
+                    thumb_hash_final = chosen_hash if chosen_hash else thumb_hash
 
                     # Create category-aware key with disambiguation only when needed
                     base_prefix = f"{current_category}:{clean_name}"
@@ -372,7 +390,7 @@ def continuous_capture():
                         for k in candidates:
                             entry = collected_items.get(k, {})
                             same_price = float(entry.get('price', -1)) == float(item_data['price'])
-                            dist = hamming_distance_hex(thumb_hash, entry.get('thumbHash', '')) if thumb_hash and entry.get('thumbHash') else None
+                            dist = hamming_distance_hex(thumb_hash_final, entry.get('thumbHash', '')) if thumb_hash_final and entry.get('thumbHash') else None
                             # Compare hue bins to avoid merging clearly different colors
                             hue_ok = True
                             try:
@@ -388,7 +406,7 @@ def continuous_capture():
                             item_key = chosen
                         else:
                             # No close match: create new key with full hash suffix
-                            suffix = ("#" + (thumb_hash if thumb_hash else f"{int(time.time()) & 0xFFFFFF:06x}"))
+                            suffix = ("#" + (thumb_hash_final if thumb_hash_final else f"{int(time.time()) & 0xFFFFFF:06x}"))
                             item_key = base_prefix + suffix
                     
                     # Track this card for visual feedback (check by category+clean name)
@@ -402,7 +420,7 @@ def continuous_capture():
                             'ocrName': ocr_name,  # Store original OCR for reference
                             'price': item_data['price'],
                             'category': current_category,  # Use detected category from orange menu item
-                            'thumbHash': thumb_hash,
+                            'thumbHash': thumb_hash_final,
                             # Snapshot persists hash only; GUI derives filename
                             'colorSig': compute_color_signature(thumb_img)
                         }
