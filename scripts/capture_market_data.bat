@@ -9,9 +9,9 @@ REM 2. Position the game window in the upper-left corner
 REM 3. Navigate to any starting category in the Market
 REM 4. Double-click this file to start capturing
 REM 
-REM Controls (work globally - even when clicking in game!):
+REM Controls:
 REM   SPACE - Start capture mode
-REM   C     - Capture current screen
+REM   Click preview window - Capture current screen
 REM   ESC   - Finish and save snapshot
 REM   Q     - Quit without saving
 REM ============================================================

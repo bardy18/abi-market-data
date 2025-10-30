@@ -48,6 +48,7 @@ class CollectorConfig:
     navigation: Dict[str, Any]
     preprocess: Dict[str, Any]
     ocr: Dict[str, Any]
+    hotkeys: Dict[str, Any] = None
 
 
 def load_config(path: str) -> CollectorConfig:
@@ -62,6 +63,12 @@ def load_config(path: str) -> CollectorConfig:
         navigation=cfg.get('navigation', {}),
         preprocess=cfg.get('preprocess', {}),
         ocr=cfg.get('ocr', {}),
+        hotkeys=cfg.get('hotkeys', {
+            'toggle': 'space',
+            'capture': 'f8',
+            'finish': 'esc',
+            'quit': 'q',
+        }),
     )
 
 

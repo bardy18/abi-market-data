@@ -47,16 +47,16 @@ A computer vision-based market intelligence system for Arena Breakout: Infinite.
    python collector/main.py
    ```
 
-3. **Controls** (work globally - even when clicking in game!):
+3. **Controls**:
    - `SPACE` - Start/pause capturing
-   - `C` - Capture current screen
+   - Click preview window - Capture current screen
    - `ESC` - Finish and save snapshot
    - `Q` - Quit without saving
 
 4. **Collection Process**:
    - Press `SPACE` to start
    - **Keep your mouse in the game window** - click and navigate freely
-   - Press `C` with your left hand to capture each screen (no need to click back to preview!)
+   - Click the preview window to capture each screen
    - The system will automatically detect which category you're viewing
    - Scroll slowly through items in each category
    - Watch for visual feedback in the preview window:
@@ -295,11 +295,7 @@ This is purely cosmetic - backend tracking still uses the itemKey.
 - Light blue borders indicate duplicates - these are handled automatically
 - Only unique items are saved to the snapshot
 
-### Hotkeys Not Working
-- Global hotkeys should work without admin privileges on Windows
-- If hotkeys don't respond, try running the script as administrator
-- Check if another application is capturing the same hotkeys
-- Make sure keyboard library was installed: `pip install keyboard>=0.13.5`
+
 
 ## What's Next?
 

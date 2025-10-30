@@ -62,3 +62,4 @@ preprocess:
 ocr:
   psm: 6  # Assume a uniform block of text
   oem: 3  # Default LSTM engine
+
