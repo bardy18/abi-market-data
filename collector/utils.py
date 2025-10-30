@@ -243,6 +243,27 @@ def hue_bin_distance(a: int, b: int, bins: int = 12) -> int:
         return None
 
 
+def are_images_similar(img_a_bgr: np.ndarray, img_b_bgr: np.ndarray, rmse_threshold: float = 12.0) -> bool:
+    """Return True if two images are visually similar using RMSE on downscaled grayscale.
+    Images are resized to 64x64, converted to grayscale, then RMSE is computed (0..255 scale).
+    """
+    if img_a_bgr is None or img_b_bgr is None:
+        return False
+    if img_a_bgr.size == 0 or img_b_bgr.size == 0:
+        return False
+    try:
+        ga = cv2.cvtColor(img_a_bgr, cv2.COLOR_BGR2GRAY) if len(img_a_bgr.shape) == 3 else img_a_bgr
+        gb = cv2.cvtColor(img_b_bgr, cv2.COLOR_BGR2GRAY) if len(img_b_bgr.shape) == 3 else img_b_bgr
+        ga = cv2.resize(ga, (64, 64), interpolation=cv2.INTER_AREA)
+        gb = cv2.resize(gb, (64, 64), interpolation=cv2.INTER_AREA)
+        diff = ga.astype(np.float32) - gb.astype(np.float32)
+        mse = float(np.mean(np.square(diff)))
+        rmse = float(np.sqrt(mse))
+        return rmse <= rmse_threshold
+    except Exception:
+        return False
+
+
 # Price parsing: allow common OCR confusions (O→0, l/I→1, S→5, B→8) and mixed separators
 _PRICE_RE = re.compile(r"([\-–—]|:)?\s*(?:\$\s*)?([0-9OoIiLlSsB]{1,3}(?:[\,\.\s][0-9OoIiLlSsB]{3})*|[0-9OoIiLlSsB]+)\s*$")
 

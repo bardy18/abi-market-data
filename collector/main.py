@@ -28,6 +28,7 @@ from collector.utils import (
     hamming_distance_hex,
     compute_color_signature,
     hue_bin_distance,
+    are_images_similar,
 )
 from difflib import SequenceMatcher
 
@@ -365,6 +366,36 @@ def continuous_capture():
                             if dist <= 4 and hsv_ok:
                                 chosen_hash = stem
                                 break
+                        # Second pass: if not chosen by hash, do visual similarity against near candidates
+                        if chosen_hash == thumb_hash and existing_files:
+                            # Limit candidates by relaxed hash distance and similar HSV
+                            candidates = []
+                            for fn in existing_files:
+                                stem = os.path.splitext(fn)[0]
+                                dist = hamming_distance_hex(thumb_hash, stem)
+                                if dist is None or dist > 12:
+                                    continue
+                                hsv_ok = True
+                                try:
+                                    if len(thumb_hash) >= 22 and len(stem) >= 22:
+                                        hsv_a = thumb_hash[-6:]
+                                        hsv_b = stem[-6:]
+                                        ha, sa, va = int(hsv_a[0:2], 16), int(hsv_a[2:4], 16), int(hsv_a[4:6], 16)
+                                        hb, sb, vb = int(hsv_b[0:2], 16), int(hsv_b[2:4], 16), int(hsv_b[4:6], 16)
+                                        hsv_ok = (abs(ha - hb) <= 25) and (abs(sa - sb) <= 60)
+                                except Exception:
+                                    hsv_ok = True
+                                if hsv_ok:
+                                    candidates.append(fn)
+                            # Compare RMSE with at most first 40 candidates for performance
+                            for fn in candidates[:40]:
+                                try:
+                                    cand_img = cv2.imread(os.path.join(thumb_dir, fn))
+                                    if are_images_similar(thumb_img, cand_img, rmse_threshold=10.0):
+                                        chosen_hash = os.path.splitext(fn)[0]
+                                        break
+                                except Exception:
+                                    continue
                         # Filename is the (possibly adjusted) hash
                         out_name = f"{chosen_hash}.png"
                         out_full = os.path.join(thumb_dir, out_name)

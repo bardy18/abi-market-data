@@ -167,8 +167,8 @@ def add_indicators(df: pd.DataFrame, ma_window: int = 5) -> pd.DataFrame:
     return df
 
 
-def find_alerts(df: pd.DataFrame, spike_pct: float, drop_pct: float) -> List[str]:
-    alerts: List[str] = []
+def find_alerts(df: pd.DataFrame, spike_pct: float, drop_pct: float) -> List[Dict[str, Any]]:
+    alerts: List[Dict[str, Any]] = []
     if df.empty:
         return alerts
     # Group by itemKey to handle items with same name in different categories
@@ -178,9 +178,23 @@ def find_alerts(df: pd.DataFrame, spike_pct: float, drop_pct: float) -> List[str
         ma = row.get('ma', np.nan)
         if not np.isnan(ma) and ma > 0:
             delta_pct = (price - ma) / ma * 100.0
+            # Prefer display name if present for cleaner alert text
+            disp_name = row.get('displayName', row.get('itemName', ''))
             if delta_pct >= spike_pct:
-                alerts.append(f"Spike: [{row['category']}] {row['itemName']} +{delta_pct:.1f}% vs MA")
+                alerts.append({
+                    'type': 'spike',
+                    'text': f"{disp_name} +{delta_pct:.1f}%",
+                    'delta': float(delta_pct),
+                    'itemKey': row['itemKey'],
+                    'category': row['category'],
+                })
             elif delta_pct <= -drop_pct:
-                alerts.append(f"Drop: [{row['category']}] {row['itemName']} {delta_pct:.1f}% vs MA")
+                alerts.append({
+                    'type': 'drop',
+                    'text': f"{disp_name} {delta_pct:.1f}%",
+                    'delta': float(delta_pct),
+                    'itemKey': row['itemKey'],
+                    'category': row['category'],
+                })
     return alerts
 

@@ -144,7 +144,7 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.addLayout(price_box)
 
         self.alerts_list = QtWidgets.QListWidget(self)
-        left_layout.addWidget(QtWidgets.QLabel('Alerts'))
+        left_layout.addWidget(QtWidgets.QLabel('Top Movers'))
         left_layout.addWidget(self.alerts_list)
 
         # Right: Chart + Table + Thumbnail
@@ -175,6 +175,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Update selection via keyboard navigation as well
         # Note: selectionModel is available after model is set in DataTable
         self.table.selectionModel().currentChanged.connect(self._on_table_current_changed)
+        self.alerts_list.itemClicked.connect(self._on_alert_clicked)
 
         # Initial load
         self.refresh_view()
@@ -209,6 +210,22 @@ class MainWindow(QtWidgets.QMainWindow):
                 pass
         return df
 
+    def _latest_per_item(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return df
+        # Ensure sorted by time, then take last per itemKey
+        if 'epoch' in df.columns:
+            df_sorted = df.sort_values(['itemKey', 'epoch'])
+        else:
+            df_sorted = df.copy()
+        latest = df_sorted.groupby('itemKey', as_index=False).tail(1)
+        # Keep presentation order: sort by price desc by default
+        try:
+            latest = latest.sort_values(['price'], ascending=[False])
+        except Exception:
+            pass
+        return latest
+
     def refresh_view(self) -> None:
         # Preserve the top-visible row's itemKey and current selection
         viewport = self.table.viewport()
@@ -227,7 +244,8 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception:
                 sel_key = ''
 
-        df = self._filtered_df()
+        df_full = self._filtered_df()
+        df = self._latest_per_item(df_full)
         blocker = QtCore.QSignalBlocker(self.table)
         self.table.setUpdatesEnabled(False)
         try:
@@ -267,7 +285,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 # Use display name for chart title
                 category = df['category'].iloc[-1]
                 display_name = df['displayName'].iloc[-1] if 'displayName' in df.columns else df['itemName'].iloc[-1]
-                self.chart.plot(df, item_key, f'[{category}] {display_name}')
+                self.chart.plot(df_full, item_key, f'[{category}] {display_name}')
             else:
                 self.chart.plot(pd.DataFrame(), '', '')
         else:
@@ -282,20 +300,20 @@ class MainWindow(QtWidgets.QMainWindow):
             item_key = model.item(row, 0).data(QtCore.Qt.UserRole)
             category = model.item(row, 1).text()
             display_name = model.item(row, 2).text()
-            df = self._filtered_df()
+            df_full = self._filtered_df()
             if item_key:
                 # Use display name in chart title
-                self.chart.plot(df, item_key, f'[{category}] {display_name}')
+                self.chart.plot(df_full, item_key, f'[{category}] {display_name}')
             else:
                 # Fallback for old data without itemKey
-                self.chart.plot(df, display_name, display_name)
+                self.chart.plot(df_full, display_name, display_name)
 
             # Update thumbnail preview
             try:
                 self.thumb_label.setText('')
                 # Find rows for this item
-                if not df.empty and 'thumbPath' in df.columns:
-                    dfi = df[df['itemKey'] == item_key] if 'itemKey' in df.columns else df[df['itemName'] == display_name]
+                if not df_full.empty and 'thumbPath' in df_full.columns:
+                    dfi = df_full[df_full['itemKey'] == item_key] if 'itemKey' in df_full.columns else df_full[df_full['itemName'] == display_name]
                     if not dfi.empty:
                         # Gather candidate paths (skip NaN and empty strings)
                         # Build candidate paths using derived thumbPath only
@@ -343,8 +361,90 @@ class MainWindow(QtWidgets.QMainWindow):
             spike_pct=float(self.cfg.alerts.get('spike_threshold_pct', 20.0)),
             drop_pct=float(self.cfg.alerts.get('drop_threshold_pct', 20.0)),
         )
+        # Sort: biggest gainers at top, biggest losers at bottom
+        alerts.sort(key=lambda a: a.get('delta', 0.0), reverse=True)
         for a in alerts:
-            self.alerts_list.addItem(a)
+            raw_text = a.get('text', '')
+            # Remove any leading emoji from utils, keep plain text
+            display_text = raw_text[1:].strip() if raw_text[:1] in ('🔺', '🔻') else raw_text
+            item = QtWidgets.QListWidgetItem(display_text)
+            # Store itemKey and category for click handling
+            item.setData(QtCore.Qt.UserRole, a.get('itemKey', ''))
+            item.setData(QtCore.Qt.UserRole + 1, a.get('category', ''))
+            # Add colored icon only; leave text default color
+            t = a.get('type')
+            if t in ('spike', 'drop'):
+                color = QtGui.QColor(0, 150, 0) if t == 'spike' else QtGui.QColor(180, 0, 0)
+                direction = 'up' if t == 'spike' else 'down'
+                icon = self._make_alert_icon(color, direction)
+                if icon is not None:
+                    item.setIcon(icon)
+            self.alerts_list.addItem(item)
+
+    def _on_alert_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
+        # Select the corresponding row in the table and update chart/thumbnail
+        item_key = item.data(QtCore.Qt.UserRole)
+        category = item.data(QtCore.Qt.UserRole + 1)
+        if not item_key:
+            return
+        # Make sure filters show the item: set category to alert's category and clear name/price filters
+        if category and self.category_cb.currentText() != category:
+            blocker = QtCore.QSignalBlocker(self.category_cb)
+            self.category_cb.setCurrentText(category)
+            del blocker
+        for w in (self.item_edit, self.price_min, self.price_max):
+            blk = QtCore.QSignalBlocker(w)
+            w.setText('')
+            del blk
+        # Refresh view then find and select the row with this itemKey
+        self.refresh_view()
+        m = self.table.model_
+        target_row = -1
+        for r in range(m.rowCount()):
+            try:
+                if m.item(r, 0).data(QtCore.Qt.UserRole) == item_key:
+                    target_row = r
+                    break
+            except Exception:
+                continue
+        if target_row >= 0:
+            idx = m.index(target_row, 0)
+            if idx.isValid():
+                self.table.setCurrentIndex(idx)
+                self.table.scrollTo(idx, QtWidgets.QAbstractItemView.PositionAtCenter)
+                self._on_table_clicked(idx)
+
+    def _make_alert_icon(self, color: QtGui.QColor, direction: str = 'up') -> QtGui.QIcon:
+        # Create a small triangle icon with the given color and orientation
+        size = 12
+        pm = QtGui.QPixmap(size, size)
+        pm.fill(QtCore.Qt.GlobalColor.transparent)
+        painter = QtGui.QPainter(pm)
+        try:
+            painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            brush = QtGui.QBrush(color)
+            pen = QtGui.QPen(color)
+            pen.setWidth(1)
+            painter.setPen(pen)
+            painter.setBrush(brush)
+            if direction == 'down':
+                # Downward triangle
+                points = [
+                    QtCore.QPointF(2.0, 2.0),
+                    QtCore.QPointF(size-2.0, 2.0),
+                    QtCore.QPointF(size/2.0, size-2.0),
+                ]
+            else:
+                # Upward triangle
+                points = [
+                    QtCore.QPointF(size/2.0, 2.0),
+                    QtCore.QPointF(2.0, size-2.0),
+                    QtCore.QPointF(size-2.0, size-2.0),
+                ]
+            painter.drawPolygon(QtGui.QPolygonF(points))
+        finally:
+            painter.end()
+        return QtGui.QIcon(pm)
 
     def _on_table_double_clicked(self, index: QtCore.QModelIndex) -> None:
         model = self.table.model_

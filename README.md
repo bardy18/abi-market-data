@@ -140,7 +140,6 @@ ABIMarketData/
 ├── collector/                 # Data collection module
 │   ├── main.py                  # Main collector script
 │   ├── utils.py                 # Utilities (config, OCR, computer vision)
-│   ├── cleanup_thumbs.py        # Thumbnail de-duplication/cleanup tool
 │   └── config.yaml              # Collector settings
 ├── trading_app/               # GUI application
 │   ├── main.py                # GUI interface
@@ -152,7 +151,6 @@ ABIMarketData/
 ├── scripts/                     # Launcher scripts
 │   ├── capture_market_data.bat  # Windows launcher for collector
 │   ├── view_market_data.bat     # Windows launcher for GUI
-│   └── cleanup_thumbs.bat       # Windows launcher for thumbnail cleanup
 ├── snapshots/                   # Market data snapshots
 │   ├── YYYY-MM-DD_HH-MM.json    # Snapshot files
 │   └── thumbs/                  # Thumbnail images used by the GUI
@@ -303,23 +301,7 @@ This is purely cosmetic - backend tracking still uses the exact `itemKey`.
 
 ## Maintenance
 
-### Clean up thumbnails
-
-Over time, the `snapshots/thumbs/` folder can accumulate near-duplicate thumbnails. Use the cleanup tool to de-duplicate and prune similar images.
-
-Run via script (recommended):
-```
-scripts\cleanup_thumbs.bat
-```
-
-Or directly:
-```
-python collector/cleanup_thumbs.py --apply --threshold 8 --snapshots snapshots
-```
-
-Notes:
-- Lower `--threshold` is stricter (fewer images considered duplicates). Default is 8.
-- Without `--apply`, the tool performs a dry run.
+Thumbnails are de-duplicated automatically during capture; no manual cleanup is required.
 
 ## What's Next?
 
