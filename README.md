@@ -238,7 +238,7 @@ Notes:
 
 ### OCR Mappings (`ocr_mappings.json`)
 
-Maps OCR variations to clean display names for deduplication. Edit `mappings/ocr_mappings.json` manually:
+Maps OCR variations to clean names for deduplication. Edit `mappings/ocr_mappings.json` manually:
 
 Example:
 ```json
