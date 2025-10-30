@@ -116,6 +116,65 @@ def preprocess_image(img: np.ndarray, cfg: Dict[str, Any]) -> np.ndarray:
     return out
 
 
+def compute_thumbnail_hash(img_bgr: np.ndarray) -> str:
+    """
+    Compute a perceptual hash (aHash) of the provided thumbnail image.
+    Returns a hex string (16 chars for 64-bit hash).
+    """
+    if img_bgr is None or img_bgr.size == 0:
+        return ""
+    try:
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    except Exception:
+        gray = img_bgr if len(img_bgr.shape) == 2 else cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    small = cv2.resize(gray, (8, 8), interpolation=cv2.INTER_AREA)
+    avg = float(small.mean())
+    bits = (small > avg).astype(np.uint8).flatten()
+    # Pack bits into 64-bit integer
+    value = 0
+    for b in bits:
+        value = (value << 1) | int(b)
+    return f"{value:016x}"
+
+
+def hamming_distance_hex(a: str, b: str) -> Optional[int]:
+    """Hamming distance between two equal-length hex strings (bitwise)."""
+    if not a or not b:
+        return None
+
+
+def compute_color_signature(img_bgr: np.ndarray) -> Dict[str, Any]:
+    """Compute a simple color signature for disambiguation.
+    Returns dict with mean HSV and a quantized hue bin (0-11).
+    """
+    if img_bgr is None or img_bgr.size == 0:
+        return {"h_mean": 0.0, "s_mean": 0.0, "v_mean": 0.0, "h_bin": 0}
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+    h_mean = float(h.mean())  # 0..180 in OpenCV
+    s_mean = float(s.mean())  # 0..255
+    v_mean = float(v.mean())  # 0..255
+    # Quantize hue into 12 bins (each 15 units)
+    h_bin = int(h_mean // 15) % 12
+    return {"h_mean": h_mean, "s_mean": s_mean, "v_mean": v_mean, "h_bin": h_bin}
+
+
+def hue_bin_distance(a: int, b: int, bins: int = 12) -> int:
+    """Cyclic distance between hue bins."""
+    d = abs((a % bins) - (b % bins))
+    return min(d, bins - d)
+    try:
+        # Normalize to same length by trimming to shortest
+        n = min(len(a), len(b))
+        va = int(a[:n], 16)
+        vb = int(b[:n], 16)
+        x = va ^ vb
+        # Count bits set (popcount)
+        return int(bin(x).count('1'))
+    except Exception:
+        return None
+
+
 _PRICE_RE = re.compile(r"([\-–—]|:)?\s*(\d{1,3}(?:[\,\.]\d{3})*|\d+)$")
 
 

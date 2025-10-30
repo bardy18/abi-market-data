@@ -2,6 +2,7 @@
   "_comment": "Map OCR variations to clean display names",
   "_instructions": "Add entries when OCR produces variations of the same item",
   "_example": "The key is the OCR name (as it appears in snapshots), the value is the clean display name",
-  "Aviotor Helmet": "Aviator Helmet"
+  "Aviotor Helmet": "Aviator Helmet",
+  "Dato Cable": "Data Cable"
 }
 

@@ -119,18 +119,24 @@ def snapshots_to_dataframe(snapshots: List[Dict[str, Any]]) -> pd.DataFrame:
         for category, items in categories_data.items():
             for item in items:
                 clean_name = item.get('itemName')  # Already clean from snapshot
+                thumb_hash = item.get('thumbHash', '')
+                # Derive filename from hash: thumbs/<hash>.png
+                thumb_file = ''
+                thumb_path = f"thumbs/{thumb_hash}.png" if thumb_hash else ''
+                key_suffix = ("#" + thumb_hash[:6]) if thumb_hash else ""
                 rows.append({
                     'timestamp': pd.to_datetime(ts, unit='s'),
                     'epoch': int(ts),
                     'category': category,
-                    'itemName': clean_name,  # Use clean name as the tracking identifier
+                    'itemName': clean_name,  # Clean name
+                    'thumbHash': thumb_hash,
+                    'thumbPath': thumb_path,
                     'price': float(item.get('price', 0)),
+                    'itemKey': f"{category}:{clean_name}{key_suffix}",
                 })
     if not rows:
-        return pd.DataFrame(columns=['timestamp', 'epoch', 'category', 'itemName', 'price', 'itemKey', 'friendlyName'])
+        return pd.DataFrame(columns=['timestamp', 'epoch', 'category', 'itemName', 'thumbHash', 'thumbPath', 'price', 'itemKey', 'friendlyName'])
     df = pd.DataFrame(rows)
-    # Create composite key for unique identification (handles truncated names across categories)
-    df['itemKey'] = df['category'] + ':' + df['itemName']
     # Add friendly names for GUI display
     df['friendlyName'] = df['itemKey'].apply(get_display_name)
     # Sort by item key and time for historical analysis

@@ -5,6 +5,7 @@ Press SPACE to start/stop, ESC to finish and save.
 Click the preview window to capture each screen.
 """
 import cv2
+import re
 import sys
 import os
 import time
@@ -16,7 +17,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from collector.utils import load_config, detect_card_positions, extract_item_from_card, detect_selected_category, load_ocr_mapping, get_clean_name
+from collector.utils import (
+    load_config,
+    detect_card_positions,
+    extract_item_from_card,
+    detect_selected_category,
+    load_ocr_mapping,
+    get_clean_name,
+    compute_thumbnail_hash,
+    hamming_distance_hex,
+    compute_color_signature,
+    hue_bin_distance,
+)
 from difflib import SequenceMatcher
 
 
@@ -196,23 +208,15 @@ def continuous_capture():
                 # Draw all borders from last capture if still within display duration
                 elapsed = time.time() - last_capture_time
                 if elapsed < border_display_duration:
-                    grid_cfg = config.ui_regions['item_grid']
-                    roi_x = grid_cfg['x']
-                    roi_y = grid_cfg['y']
+                    # Draw cyan borders for all detected card positions (absolute coords)
+                    for (abs_x, abs_y, w, h) in last_card_positions:
+                        cv2.rectangle(preview, (abs_x, abs_y), (abs_x + w, abs_y + h), (255, 255, 0), 1)
                     
-                    # Draw cyan borders for all detected card positions
-                    for (x, y, w, h) in last_card_positions:
-                        screen_x = roi_x + x
-                        screen_y = roi_y + y
-                        cv2.rectangle(preview, (screen_x, screen_y), (screen_x + w, screen_y + h), (255, 255, 0), 1)
-                    
-                    # Draw green/light blue borders for successfully read cards
-                    for (x, y, w, h, is_new) in last_detected_cards:
-                        screen_x = roi_x + x
-                        screen_y = roi_y + y
+                    # Draw green/light blue borders for successfully read cards (absolute coords)
+                    for (abs_x, abs_y, w, h, is_new) in last_detected_cards:
                         color = (0, 255, 0) if is_new else (255, 165, 0)
                         thickness = 3 if is_new else 2
-                        cv2.rectangle(preview, (screen_x, screen_y), (screen_x + w, screen_y + h), color, thickness)
+                        cv2.rectangle(preview, (abs_x, abs_y), (abs_x + w, abs_y + h), color, thickness)
                     
                     # Draw magenta category box
                     if last_category_bbox:
@@ -275,13 +279,16 @@ def continuous_capture():
             roi_x = grid_cfg['x']
             roi_y = grid_cfg['y']
             roi_w = grid_cfg['width']
-            roi_h = screenshot.shape[0] - roi_y  # Go all the way to bottom of screenshot
+            # Extend ROI to bottom of screenshot so full cards are captured
+            roi_h = screenshot.shape[0] - roi_y
             
             # Extract ROI from full screenshot
             grid_region = screenshot[roi_y:roi_y + roi_h, roi_x:roi_x + roi_w]
             
             # Detect actual card positions dynamically (works with scrolling)
             card_positions = detect_card_positions(grid_region, config.item_card)
+            # Precompute absolute screen coordinates for all detected cards
+            abs_card_positions = [(roi_x + x, roi_y + y, w, h) for (x, y, w, h) in card_positions]
             
             # Extract items from visible cards
             new_items_this_capture = 0
@@ -291,7 +298,7 @@ def continuous_capture():
             cards_visible = 0
             cards_with_data = 0
             
-            for (x, y, w, h) in card_positions:
+            for idx, (x, y, w, h) in enumerate(card_positions):
                 # detect_card_positions returns relative positions (0,0 = top-left of ROI)
                 card_x = x
                 card_y = y
@@ -316,20 +323,88 @@ def continuous_capture():
                     ocr_name = item_data['itemName']
                     clean_name = get_clean_name(ocr_name)  # Map to clean name
                     
-                    # Create category-aware key to handle truncated names
-                    # (e.g., "SH40 Tactical..." could be helmet or armor)
-                    item_key = f"{current_category}:{clean_name}"
+                    # Compute thumbnail hash from the card image region between name and price
+                    icfg = config.item_card
+                    thumb_top = int(icfg.get('thumbnail_top', icfg.get('name_region_height', 18)))
+                    thumb_h = int(icfg.get('thumbnail_height', max(0, icfg.get('price_top', 181) - thumb_top)))
+                    thumb_bottom = min(card_image.shape[0], thumb_top + thumb_h)
+                    thumb_img = card_image[thumb_top:thumb_bottom, 0:card_image.shape[1]] if thumb_h > 0 else card_image
+                    thumb_hash = compute_thumbnail_hash(thumb_img)
+                    # Persist thumbnail image for GUI (small, e.g., 96px tall) with de-duplication by hash
+                    thumb_dir = os.path.join(config.snapshots_path, 'thumbs')
+                    os.makedirs(thumb_dir, exist_ok=True)
+                    thumb_path = ""
+                    h, w = thumb_img.shape[:2]
+                    if h > 0 and w > 0 and thumb_hash:
+                        # If a very similar hash already exists, reuse that filename
+                        existing_files = []
+                        try:
+                            existing_files = [f for f in os.listdir(thumb_dir) if f.lower().endswith('.png')]
+                        except Exception:
+                            existing_files = []
+                        chosen_hash = thumb_hash
+                        for fn in existing_files:
+                            stem = os.path.splitext(fn)[0]
+                            dist = hamming_distance_hex(thumb_hash, stem)
+                            if dist is not None and dist <= 8:
+                                chosen_hash = stem
+                                break
+                        # Filename is the (possibly adjusted) hash
+                        out_name = f"{chosen_hash[:16]}.png"
+                        out_full = os.path.join(thumb_dir, out_name)
+                        if not os.path.exists(out_full):
+                            # Keep aspect ratio; target height 96
+                            scale = 96.0 / float(h)
+                            resized = cv2.resize(thumb_img, (max(1, int(w*scale)), 96), interpolation=cv2.INTER_AREA)
+                            try:
+                                cv2.imwrite(out_full, resized)
+                            except Exception:
+                                out_full = ""
+                        thumb_path = out_full
+
+                    # Create category-aware key with disambiguation only when needed
+                    base_prefix = f"{current_category}:{clean_name}"
+                    candidates = [k for k in collected_items.keys() if k.startswith(base_prefix)]
+                    if not candidates:
+                        item_key = base_prefix
+                    else:
+                        chosen = None
+                        for k in candidates:
+                            entry = collected_items.get(k, {})
+                            same_price = float(entry.get('price', -1)) == float(item_data['price'])
+                            dist = hamming_distance_hex(thumb_hash, entry.get('thumbHash', '')) if thumb_hash and entry.get('thumbHash') else None
+                            # Compare hue bins to avoid merging clearly different colors
+                            hue_ok = True
+                            try:
+                                src_bin = int(compute_color_signature(thumb_img).get('h_bin', 0))
+                                dst_bin = int(entry.get('colorSig', {}).get('h_bin', 0)) if isinstance(entry.get('colorSig'), dict) else 0
+                                hue_ok = hue_bin_distance(src_bin, dst_bin) <= 1
+                            except Exception:
+                                hue_ok = True
+                            if same_price or (dist is not None and dist <= 8 and hue_ok):
+                                chosen = k
+                                break
+                        if chosen:
+                            item_key = chosen
+                        else:
+                            # No close match: create new key with short hash suffix
+                            suffix = ("#" + (thumb_hash[:6] if thumb_hash else f"{int(time.time()) & 0xFFFFFF:06x}"))
+                            item_key = base_prefix + suffix
                     
                     # Track this card for visual feedback (check by category+clean name)
                     is_new = item_key not in collected_items
-                    detected_cards.append((x, y, w, h, is_new))
+                    abs_x, abs_y, aw, ah = abs_card_positions[idx]
+                    detected_cards.append((abs_x, abs_y, aw, ah, is_new))
                     
-                    # Add or update item (category:clean_name is the unique key)
+                    # Add or update item (category:clean_name#hash is the unique key)
                     if is_new:
                         collected_items[item_key] = {
                             'ocrName': ocr_name,  # Store original OCR for reference
                             'price': item_data['price'],
-                            'category': current_category  # Use detected category from orange menu item
+                            'category': current_category,  # Use detected category from orange menu item
+                            'thumbHash': thumb_hash,
+                            # Snapshot persists hash only; GUI derives filename
+                            'colorSig': compute_color_signature(thumb_img)
                         }
                         new_items_this_capture += 1
                         # Show both names if different
@@ -354,20 +429,15 @@ def continuous_capture():
             screenshot_with_borders = screenshot.copy()
             
             # Draw borders for all detected positions (teal for detected but not fully visible)
-            for (x, y, w, h) in card_positions:
-                screen_x = roi_x + x
-                screen_y = roi_y + y
-                cv2.rectangle(screenshot_with_borders, (screen_x, screen_y), (screen_x + w, screen_y + h), (255, 255, 0), 1)  # Teal thin border
+            for (abs_x, abs_y, w, h) in abs_card_positions:
+                cv2.rectangle(screenshot_with_borders, (abs_x, abs_y), (abs_x + w, abs_y + h), (255, 255, 0), 1)  # Teal thin border
             
             # Draw thicker borders for cards that were successfully read
-            for (x, y, w, h, is_new) in detected_cards:
+            for (abs_x, abs_y, w, h, is_new) in detected_cards:
                 # Green border for new items, light blue for already captured
                 color = (0, 255, 0) if is_new else (255, 165, 0)  # Green or Light Blue
                 thickness = 3 if is_new else 2
-                # Convert ROI-relative coords to screen coords
-                screen_x = roi_x + x
-                screen_y = roi_y + y
-                cv2.rectangle(screenshot_with_borders, (screen_x, screen_y), (screen_x + w, screen_y + h), color, thickness)
+                cv2.rectangle(screenshot_with_borders, (abs_x, abs_y), (abs_x + w, abs_y + h), color, thickness)
             
             # Draw bounding box for the category OCR region (in magenta/purple)
             if category_bbox:
@@ -394,7 +464,7 @@ def continuous_capture():
             
             # Save all border information and timestamp for time-limited display
             last_detected_cards = detected_cards.copy()
-            last_card_positions = card_positions.copy()
+            last_card_positions = abs_card_positions
             last_category_bbox = category_bbox
             last_current_category = current_category
             last_capture_time = time.time()
@@ -416,13 +486,17 @@ def continuous_capture():
         # Store clean names in snapshot (already deduplicated)
         categories = {}
         for item_key, data in collected_items.items():
-            # item_key format: "category:cleanName"
+            # item_key format: "category:cleanName#hash"
             category = data['category']
-            clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
+            clean_part = item_key.split(':', 1)[1] if ':' in item_key else item_key
+            clean_name = clean_part.split('#', 1)[0]
             if category not in categories:
                 categories[category] = []
-            # Store clean name in snapshot (deduplicated name)
-            categories[category].append({'itemName': clean_name, 'price': data['price']})
+            # Store clean name and thumbnail hash (GUI derives filename)
+            entry = {'itemName': clean_name, 'price': data['price']}
+            if data.get('thumbHash'):
+                entry['thumbHash'] = data['thumbHash']
+            categories[category].append(entry)
         
         # Create snapshot
         snapshot = {

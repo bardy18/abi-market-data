@@ -132,10 +132,17 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.addWidget(QtWidgets.QLabel('Alerts'))
         left_layout.addWidget(self.alerts_list)
 
-        # Right: Chart + Table
+        # Right: Chart + Table + Thumbnail
         right = QtWidgets.QWidget(self)
         right_layout = QtWidgets.QVBoxLayout(right)
         main_layout.addWidget(right, 3)
+
+        # Thumbnail preview
+        self.thumb_label = QtWidgets.QLabel(self)
+        self.thumb_label.setFixedHeight(110)
+        self.thumb_label.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        self.thumb_label.setText('Thumbnail will appear here when you select an item')
+        right_layout.addWidget(self.thumb_label)
 
         self.chart = TrendChart(self)
         right_layout.addWidget(self.chart, 3)
@@ -213,6 +220,48 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 # Fallback for old data without itemKey
                 self.chart.plot(df, friendly_name, friendly_name)
+
+            # Update thumbnail preview
+            try:
+                self.thumb_label.setText('')
+                # Find rows for this item
+                if not df.empty and 'thumbPath' in df.columns:
+                    dfi = df[df['itemKey'] == item_key] if 'itemKey' in df.columns else df[df['itemName'] == friendly_name]
+                    if not dfi.empty:
+                        # Gather candidate paths (skip NaN and empty strings)
+                        # Build candidate paths using derived thumbPath only
+                        cand = []
+                        if 'thumbPath' in dfi.columns:
+                            for p in dfi['thumbPath']:
+                                if isinstance(p, str) and p.strip():
+                                    cand.append(str(p))
+                        # De-duplicate preserving order
+                        seen = set()
+                        cand = [x for x in cand if not (x in seen or seen.add(x))]
+                        found_path = ''
+                        for thumb_rel in reversed(cand):
+                            # Try absolute first
+                            thumb_abs = thumb_rel
+                            if not os.path.isabs(thumb_abs):
+                                thumb_abs = os.path.normpath(os.path.join(self.cfg.snapshots_path, thumb_rel))
+                            if os.path.exists(thumb_abs):
+                                found_path = thumb_abs
+                                break
+                            # Try replacing slashes just in case
+                            alt_rel = thumb_rel.replace('/', os.sep).replace('\\', os.sep)
+                            thumb_abs = os.path.normpath(os.path.join(self.cfg.snapshots_path, alt_rel))
+                            if os.path.exists(thumb_abs):
+                                found_path = thumb_abs
+                                break
+                        if found_path:
+                            pix = QtGui.QPixmap(found_path)
+                            self.thumb_label.setPixmap(pix)
+                        else:
+                            self.thumb_label.setText('Thumbnail not found')
+                else:
+                    self.thumb_label.setText('')
+            except Exception:
+                self.thumb_label.setText('')
 
     def _update_alerts(self) -> None:
         self.alerts_list.clear()
