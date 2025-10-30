@@ -232,10 +232,8 @@ Notes:
 ### How It Works
 
 1. **During Collection**: The collector checks `mappings/ocr_mappings.json` and uses clean names as unique identifiers
-2. **Category-Aware Deduplication**: Items are uniquely identified by **category + display name** combination
-   - "SH40 Tactical..." in Helmet category is separate from "SH40 Tactical..." in Body Armor category
-   - Handles truncated names that look identical but are different items
-3. **Automatic Deduplication**: If OCR reads "Aviotor Helmet" after already capturing "Aviator Helmet" (same category), and both map to the same display name, only one item is kept
+2. **Category-Aware Deduplication**: Items are uniquely identified by **category + clean name** (the `itemKey` is `category:cleanName#hash`, with required `#hash`)
+3. **Automatic Deduplication**: If OCR reads "Aviotor Helmet" after already capturing "Aviator Helmet" (same category), and both map to the same clean name, only one item is kept
 4. **Duplicate Detection**: After collection, the system alerts you to potential duplicates (similar names with same price in same category)
 
 ### OCR Mappings (`ocr_mappings.json`)
