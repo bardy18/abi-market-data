@@ -11,56 +11,56 @@ import numpy as np
 
 
 # Item name mapping
-_name_mapping = None
-_friendly_name_mapping = None
+_ocr_mapping = None
+_display_mapping = None
 
-def load_item_name_mapping() -> Dict[str, str]:
+def load_ocr_mapping() -> Dict[str, str]:
     """Load the OCR to display name mapping from ocr_mappings.json"""
-    global _name_mapping
-    if _name_mapping is None:
+    global _ocr_mapping
+    if _ocr_mapping is None:
         mapping_file = Path(__file__).parent.parent / 'mappings' / 'ocr_mappings.json'
         if mapping_file.exists():
             with open(mapping_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 # Filter out comment entries
-                _name_mapping = {k: v for k, v in data.items() if not k.startswith('_')}
+                _ocr_mapping = {k: v for k, v in data.items() if not k.startswith('_')}
         else:
-            _name_mapping = {}
-    return _name_mapping
+            _ocr_mapping = {}
+    return _ocr_mapping
 
 
-def load_friendly_name_mapping() -> Dict[str, str]:
+def load_display_mapping() -> Dict[str, str]:
     """Load the display to friendly name mapping from display_mappings.json"""
-    global _friendly_name_mapping
-    if _friendly_name_mapping is None:
+    global _display_mapping
+    if _display_mapping is None:
         mapping_file = Path(__file__).parent.parent / 'mappings' / 'display_mappings.json'
         if mapping_file.exists():
             with open(mapping_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 # Filter out comment entries
-                _friendly_name_mapping = {k: v for k, v in data.items() if not k.startswith('_')}
+                _display_mapping = {k: v for k, v in data.items() if not k.startswith('_')}
         else:
-            _friendly_name_mapping = {}
-    return _friendly_name_mapping
+            _display_mapping = {}
+    return _display_mapping
 
 
-def get_display_name(ocr_name: str) -> str:
-    """Get the display name for an OCR-extracted item name"""
-    mapping = load_item_name_mapping()
+def get_clean_name(ocr_name: str) -> str:
+    """Get the clean/deduplicated name for an OCR-extracted item name"""
+    mapping = load_ocr_mapping()
     return mapping.get(ocr_name, ocr_name)
 
 
-def get_friendly_name(item_key: str) -> str:
+def get_display_name(item_key: str) -> str:
     """
-    Get the friendly full name for GUI display.
+    Get the full display name for GUI from an item key.
     
     Args:
-        item_key: Composite key in format "category:displayName"
+        item_key: Composite key in format "category:cleanName"
     
     Returns:
-        Friendly full name if mapped, otherwise returns the display name part
+        Full display name if mapped, otherwise returns the clean name part
     """
-    mapping = load_friendly_name_mapping()
+    mapping = load_display_mapping()
     friendly = mapping.get(item_key)
     if friendly:
         return friendly
@@ -70,11 +70,11 @@ def get_friendly_name(item_key: str) -> str:
     return item_key
 
 
-def get_ocr_name(display_name: str) -> Optional[str]:
-    """Reverse lookup: get OCR name from display name"""
-    mapping = load_item_name_mapping()
-    for ocr, display in mapping.items():
-        if display == display_name:
+def get_ocr_name(clean_name: str) -> Optional[str]:
+    """Reverse lookup: get OCR name from clean name"""
+    mapping = load_ocr_mapping()
+    for ocr, clean in mapping.items():
+        if clean == clean_name:
             return ocr
     return None
 
@@ -150,14 +150,14 @@ def snapshots_to_dataframe(snapshots: List[Dict[str, Any]]) -> pd.DataFrame:
         for category, items in categories_data.items():
             for item in items:
                 ocr_name = item.get('itemName')
-                display_name = get_display_name(ocr_name)
+                clean_name = get_clean_name(ocr_name)
                 rows.append({
                     'timestamp': pd.to_datetime(ts, unit='s'),
                     'epoch': int(ts),
                     'category': category,
                     'ocrName': ocr_name,  # Keep for reference/debugging
-                    'itemName': display_name,  # Use display name as the tracking identifier
-                    'displayName': display_name,  # For backward compatibility
+                    'itemName': clean_name,  # Use clean name as the tracking identifier
+                    'displayName': clean_name,  # For backward compatibility
                     'price': float(item.get('price', 0)),
                 })
     if not rows:
@@ -166,7 +166,7 @@ def snapshots_to_dataframe(snapshots: List[Dict[str, Any]]) -> pd.DataFrame:
     # Create composite key for unique identification (handles truncated names across categories)
     df['itemKey'] = df['category'] + ':' + df['itemName']
     # Add friendly names for GUI display
-    df['friendlyName'] = df['itemKey'].apply(get_friendly_name)
+    df['friendlyName'] = df['itemKey'].apply(get_display_name)
     # Sort by item key and time for historical analysis
     df.sort_values(['itemKey', 'epoch'], inplace=True)
     return df

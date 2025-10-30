@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from collector.utils import load_config, detect_card_positions, extract_item_from_card, detect_selected_category
-from trading_app.utils import load_item_name_mapping, get_display_name
+from trading_app.utils import load_ocr_mapping, get_clean_name
 from difflib import SequenceMatcher
 
 
@@ -85,9 +85,9 @@ def continuous_capture():
     config_path = Path(__file__).parent / 'config.yaml'
     config = load_config(str(config_path))
     
-    # Load item name mapping for deduplication by display name
-    print("Loading item name mappings...")
-    load_item_name_mapping()  # Pre-load the mapping cache
+    # Load OCR mapping for deduplication by display name
+    print("Loading OCR mappings...")
+    load_ocr_mapping()  # Pre-load the mapping cache
     
     # Set tesseract path
     if config.tesseract_path:
@@ -280,17 +280,17 @@ def continuous_capture():
                 
                 if item_data:
                     ocr_name = item_data['itemName']
-                    display_name = get_display_name(ocr_name)  # Map to clean name
+                    clean_name = get_clean_name(ocr_name)  # Map to clean name
                     
                     # Create category-aware key to handle truncated names
                     # (e.g., "SH40 Tactical..." could be helmet or armor)
-                    item_key = f"{current_category}:{display_name}"
+                    item_key = f"{current_category}:{clean_name}"
                     
-                    # Track this card for visual feedback (check by category+display name)
+                    # Track this card for visual feedback (check by category+clean name)
                     is_new = item_key not in collected_items
                     detected_cards.append((x, y, w, h, is_new))
                     
-                    # Add or update item (category:display_name is the unique key)
+                    # Add or update item (category:clean_name is the unique key)
                     if is_new:
                         collected_items[item_key] = {
                             'ocrName': ocr_name,  # Store original OCR for reference
@@ -299,10 +299,10 @@ def continuous_capture():
                         }
                         new_items_this_capture += 1
                         # Show both names if different
-                        if ocr_name != display_name:
-                            print(f"  [{current_category}] {display_name} (OCR: {ocr_name}) - ${item_data['price']:,}")
+                        if ocr_name != clean_name:
+                            print(f"  [{current_category}] {clean_name} (OCR: {ocr_name}) - ${item_data['price']:,}")
                         else:
-                            print(f"  [{current_category}] {display_name} - ${item_data['price']:,}")
+                            print(f"  [{current_category}] {clean_name} - ${item_data['price']:,}")
             
             # Optional: Uncomment to debug OCR success rate
             # print(f"[DEBUG] Detected: {len(card_positions)}, Checked: {cards_checked}, Visible: {cards_visible}, With data: {cards_with_data}")
@@ -404,9 +404,9 @@ def continuous_capture():
         print("\nTop 10 items by price:")
         sorted_items = sorted(collected_items.items(), key=lambda x: x[1]['price'], reverse=True)
         for item_key, data in sorted_items[:10]:
-            # item_key format: "category:displayName" - extract display name for output
-            display_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
-            print(f"  ${data['price']:>8,} - [{data['category']}] {display_name}")
+            # item_key format: "category:cleanName" - extract clean name for output
+            clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
+            print(f"  ${data['price']:>8,} - [{data['category']}] {clean_name}")
         
         # Check for potential OCR duplicates (similar names with same price in same category)
         # This helps identify items that should be mapped together
