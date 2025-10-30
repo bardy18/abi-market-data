@@ -57,10 +57,10 @@ A computer vision-based market intelligence system for Arena Breakout: Infinite.
    - Navigate through each category in the left menu
    - The system will automatically detect which category you're viewing
    - Scroll slowly through items in each category
-   - Wait for the white **flash** after each screen to confirm capture
    - Watch for visual feedback:
      - 🟢 **Green borders** = New items captured
-     - 🟠 **Orange borders** = Already captured (duplicates)
+     - 🔵 **Light blue borders** = Already captured (duplicates)
+     - **Teal borders** = Detected but not fully visible
      - 🟣 **Magenta box** = Category being detected
    - Press `ESC` when you've captured all categories
 
@@ -105,8 +105,8 @@ More frequent captures = better trend analysis!
 
 ### Accuracy
 - Pause briefly on each screen before scrolling
-- Let items fully load before the flash
-- Orange borders mean you've already captured those items - safe to scroll past
+- Watch for green borders on newly captured items
+- Light blue borders mean you've already captured those items - safe to scroll past
 
 ### Coverage
 - Always scan in the same order for consistency
@@ -281,12 +281,12 @@ This is purely cosmetic - backend tracking still uses the itemKey.
 
 ### Missing Items
 - Scroll slower and pause on each screen
-- Watch for white flash confirming capture
-- Orange borders show already-captured items
-- Adjust `navigation.scroll_pause` in config if needed
+- Watch for green borders confirming new item capture
+- Light blue borders show already-captured items
+- Teal borders mean the item isn't fully visible yet - pause before scrolling
 
 ### Items Captured Multiple Times
-- Orange borders indicate duplicates - these are handled automatically
+- Light blue borders indicate duplicates - these are handled automatically
 - Only unique items are saved to the snapshot
 
 ## What's Next?

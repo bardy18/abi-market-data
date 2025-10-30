@@ -20,30 +20,6 @@ from trading_app.utils import load_item_name_mapping, get_display_name
 from difflib import SequenceMatcher
 
 
-def make_snapshot_filename(base_dir: str, category: str = "Mixed") -> str:
-    """Generate snapshot filename with timestamp"""
-    timestamp_str = datetime.now().strftime('%Y-%m-%d_%H-%M')
-    return os.path.join(base_dir, f"{timestamp_str}.json")
-
-# Visual feedback overlay
-def flash_screen(screenshot, duration=0.15):
-    """Show a white flash overlay to indicate capture"""
-    overlay = screenshot.copy()
-    # Add white semi-transparent overlay
-    white = (255, 255, 255)
-    cv2.rectangle(overlay, (0, 0), (overlay.shape[1], overlay.shape[0]), white, -1)
-    alpha = 0.3
-    flashed = cv2.addWeighted(overlay, alpha, screenshot, 1 - alpha, 0)
-    
-    # Show the flash
-    cv2.imshow('ABI Market Capture', flashed)
-    cv2.waitKey(int(duration * 1000))
-    
-    # Show original
-    cv2.imshow('ABI Market Capture', screenshot)
-    cv2.waitKey(1)
-
-
 def is_card_fully_visible(card_image, card_config):
     """
     Check if a card has enough visible to extract name and price.
@@ -98,7 +74,7 @@ def continuous_capture():
     print("\nInstructions:")
     print("  1. Start capture with SPACE")
     print("  2. Navigate categories and scroll at your own pace")
-    print("  3. Screen will flash white when items are captured")
+    print("  3. Watch for green borders on newly captured items")
     print("  4. Pause briefly on each screen so items are fully visible")
     print("  5. Press ESC when done to save all captured items")
     print("\n" + "="*60)
@@ -218,7 +194,7 @@ def continuous_capture():
                         screen_y = roi_y + y
                         cv2.rectangle(preview, (screen_x, screen_y), (screen_x + w, screen_y + h), (255, 255, 0), 1)
                     
-                    # Draw green/orange borders for successfully read cards
+                    # Draw green/light blue borders for successfully read cards
                     for (x, y, w, h, is_new) in last_detected_cards:
                         screen_x = roi_x + x
                         screen_y = roi_y + y
@@ -337,16 +313,16 @@ def continuous_capture():
             # Draw borders around ALL detected card positions (not just those with data)
             screenshot_with_borders = screenshot.copy()
             
-            # Draw borders for all detected positions (cyan for detected but no data)
+            # Draw borders for all detected positions (teal for detected but not fully visible)
             for (x, y, w, h) in card_positions:
                 screen_x = roi_x + x
                 screen_y = roi_y + y
-                cv2.rectangle(screenshot_with_borders, (screen_x, screen_y), (screen_x + w, screen_y + h), (255, 255, 0), 1)  # Cyan thin border
+                cv2.rectangle(screenshot_with_borders, (screen_x, screen_y), (screen_x + w, screen_y + h), (255, 255, 0), 1)  # Teal thin border
             
             # Draw thicker borders for cards that were successfully read
             for (x, y, w, h, is_new) in detected_cards:
-                # Green border for new items, orange for already captured
-                color = (0, 255, 0) if is_new else (255, 165, 0)  # Green or Orange
+                # Green border for new items, light blue for already captured
+                color = (0, 255, 0) if is_new else (255, 165, 0)  # Green or Light Blue
                 thickness = 3 if is_new else 2
                 # Convert ROI-relative coords to screen coords
                 screen_x = roi_x + x
@@ -367,10 +343,6 @@ def continuous_capture():
                 cv2.putText(screenshot_with_borders, f"Category: {current_category}", 
                            (screen_cat_x, screen_cat_y - 5), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
-            
-            # Flash if new items detected
-            if new_items_this_capture > 0:
-                flash_screen(screenshot_with_borders)
             
             # Show current screenshot with borders
             display = cv2.resize(screenshot_with_borders, (800, 450))
