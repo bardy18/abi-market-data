@@ -28,6 +28,25 @@ def load_display_mapping() -> Dict[str, str]:
     return _display_mapping
 
 
+def _display_mappings_path() -> Path:
+    return Path(__file__).parent.parent / 'mappings' / 'display_mappings.json'
+
+
+def save_display_mapping(item_key: str, display_name: str) -> None:
+    """Persist a display mapping update and refresh the in-memory cache."""
+    global _display_mapping
+    # Ensure cache is loaded
+    mapping = load_display_mapping()
+    mapping[item_key] = display_name
+    path = _display_mappings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Write sorted for stability
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(mapping, f, ensure_ascii=False, indent=2)
+    # Refresh cache
+    _display_mapping = mapping
+
+
 def get_display_name(item_key: str) -> str:
     """Get the full display name for GUI from an exact item key.
     The key must match exactly what is in the mapping (including any #hash suffix).

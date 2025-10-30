@@ -62,6 +62,8 @@ class DataTable(QtWidgets.QTableView):
         self.model_ = QtGui.QStandardItemModel(self)
         self.setModel(self.model_)
         self.setSortingEnabled(True)
+        # Disable in-place editing; changes must go through mapping dialog
+        self.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
     def load(self, df: pd.DataFrame) -> None:
         self.model_.clear()
@@ -156,6 +158,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.price_min.textChanged.connect(self.refresh_view)
         self.price_max.textChanged.connect(self.refresh_view)
         self.table.clicked.connect(self._on_table_clicked)
+        self.table.doubleClicked.connect(self._on_table_double_clicked)
 
         # Initial load
         self.refresh_view()
@@ -191,8 +194,56 @@ class MainWindow(QtWidgets.QMainWindow):
         return df
 
     def refresh_view(self) -> None:
+        # Preserve the top-visible row's itemKey and current selection
+        viewport = self.table.viewport()
+        top_index = self.table.indexAt(QtCore.QPoint(0, 0))
+        top_key = ''
+        if top_index.isValid():
+            try:
+                top_key = self.table.model_.item(top_index.row(), 0).data(QtCore.Qt.UserRole)
+            except Exception:
+                top_key = ''
+        sel_index = self.table.currentIndex()
+        sel_key = ''
+        if sel_index.isValid():
+            try:
+                sel_key = self.table.model_.item(sel_index.row(), 0).data(QtCore.Qt.UserRole)
+            except Exception:
+                sel_key = ''
+
         df = self._filtered_df()
-        self.table.load(df)
+        blocker = QtCore.QSignalBlocker(self.table)
+        self.table.setUpdatesEnabled(False)
+        try:
+            self.table.load(df)
+            QtCore.QCoreApplication.processEvents()
+            # Helper to find model row by itemKey
+            def _find_row_by_key(key: str) -> int:
+                if not key:
+                    return -1
+                m = self.table.model_
+                for r in range(m.rowCount()):
+                    try:
+                        if m.item(r, 0).data(QtCore.Qt.UserRole) == key:
+                            return r
+                    except Exception:
+                        continue
+                return -1
+
+            # Restore top-visible row
+            r_top = _find_row_by_key(top_key)
+            if r_top >= 0:
+                idx_top = self.table.model_.index(r_top, 0)
+                if idx_top.isValid():
+                    self.table.scrollTo(idx_top, QtWidgets.QAbstractItemView.PositionAtTop)
+            # Restore selection
+            r_sel = _find_row_by_key(sel_key)
+            if r_sel >= 0:
+                idx_sel = self.table.model_.index(r_sel, 0)
+                if idx_sel.isValid():
+                    self.table.setCurrentIndex(idx_sel)
+        finally:
+            self.table.setUpdatesEnabled(True)
         # Update chart to the first available item using itemKey
         if not df.empty:
             item_key = df['itemKey'].iloc[-1] if 'itemKey' in df.columns else ''
@@ -274,6 +325,42 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         for a in alerts:
             self.alerts_list.addItem(a)
+
+    def _on_table_double_clicked(self, index: QtCore.QModelIndex) -> None:
+        model = self.table.model_
+        if not index.isValid():
+            return
+        row = index.row()
+        item_key = model.item(row, 0).data(QtCore.Qt.UserRole)
+        if not item_key:
+            return
+        current_display = model.item(row, 2).text()
+        # Pre-fill with the key's name portion before any #hash
+        base_name = current_display
+        if ':' in item_key:
+            base_name = item_key.split(':', 1)[1]
+        if '#' in base_name:
+            base_name = base_name.split('#', 1)[0]
+        text, ok = QtWidgets.QInputDialog.getText(
+            self,
+            'Add Display Mapping',
+            f'Enter display name for:\n{item_key}',
+            QtWidgets.QLineEdit.Normal,
+            base_name,
+        )
+        if not ok:
+            return
+        new_name = str(text).strip()
+        if not new_name:
+            return
+        try:
+            from trading_app.utils import save_display_mapping, get_display_name
+            save_display_mapping(item_key, new_name)
+            if not self.df_all.empty:
+                self.df_all['displayName'] = self.df_all['itemKey'].apply(get_display_name)
+            self.refresh_view()
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, 'Error', f'Failed to save mapping:\n{e}')
 
 
 def main() -> int:
