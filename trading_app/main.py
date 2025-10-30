@@ -71,9 +71,9 @@ class DataTable(QtWidgets.QTableView):
             items = []
             items.append(QtGui.QStandardItem(row['timestamp'].strftime('%Y-%m-%d %H:%M')))
             items.append(QtGui.QStandardItem(str(row['category'])))
-            # Show friendly name in GUI if available, otherwise display name
-            friendly_name = row.get('friendlyName', row.get('itemName', ''))
-            items.append(QtGui.QStandardItem(str(friendly_name)))
+            # Show display name in GUI if available, otherwise clean name
+            display_name = row.get('displayName', row.get('itemName', ''))
+            items.append(QtGui.QStandardItem(str(display_name)))
             items.append(QtGui.QStandardItem(f"{row['price']:.0f}"))
             items.append(QtGui.QStandardItem(f"{row.get('ma', np.nan):.1f}" if not pd.isna(row.get('ma', np.nan)) else ''))
             items.append(QtGui.QStandardItem(f"{row.get('vol', np.nan):.1f}" if not pd.isna(row.get('vol', np.nan)) else ''))
@@ -170,10 +170,12 @@ class MainWindow(QtWidgets.QMainWindow):
             df = df[df['category'] == cat]
         txt = self.item_edit.text().strip().lower()
         if txt:
-            # Search in itemName (display name), ocrName, and friendlyName
-            search_mask = df['itemName'].str.lower().str.contains(txt) | df['ocrName'].str.lower().str.contains(txt)
-            if 'friendlyName' in df.columns:
-                search_mask = search_mask | df['friendlyName'].str.lower().str.contains(txt)
+            # Search in itemName (clean name), displayName (if present), and itemKey
+            search_mask = df['itemName'].astype(str).str.contains(txt, case=False, na=False)
+            if 'displayName' in df.columns:
+                search_mask = search_mask | df['displayName'].astype(str).str.contains(txt, case=False, na=False)
+            if 'itemKey' in df.columns:
+                search_mask = search_mask | df['itemKey'].astype(str).str.contains(txt, case=False, na=False)
             df = df[search_mask]
         mn, mx = self.price_min.text().strip(), self.price_max.text().strip()
         if mn:
@@ -195,10 +197,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if not df.empty:
             item_key = df['itemKey'].iloc[-1] if 'itemKey' in df.columns else ''
             if item_key:
-                # Use friendly name for chart title
+                # Use display name for chart title
                 category = df['category'].iloc[-1]
-                friendly_name = df['friendlyName'].iloc[-1] if 'friendlyName' in df.columns else df['itemName'].iloc[-1]
-                self.chart.plot(df, item_key, f'[{category}] {friendly_name}')
+                display_name = df['displayName'].iloc[-1] if 'displayName' in df.columns else df['itemName'].iloc[-1]
+                self.chart.plot(df, item_key, f'[{category}] {display_name}')
             else:
                 self.chart.plot(pd.DataFrame(), '', '')
         else:
@@ -212,14 +214,14 @@ class MainWindow(QtWidgets.QMainWindow):
             # Get itemKey from stored user data
             item_key = model.item(row, 0).data(QtCore.Qt.UserRole)
             category = model.item(row, 1).text()
-            friendly_name = model.item(row, 2).text()  # This is now the friendly name
+            display_name = model.item(row, 2).text()
             df = self._filtered_df()
             if item_key:
-                # Use friendly name in chart title
-                self.chart.plot(df, item_key, f'[{category}] {friendly_name}')
+                # Use display name in chart title
+                self.chart.plot(df, item_key, f'[{category}] {display_name}')
             else:
                 # Fallback for old data without itemKey
-                self.chart.plot(df, friendly_name, friendly_name)
+                self.chart.plot(df, display_name, display_name)
 
             # Update thumbnail preview
             try:

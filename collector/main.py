@@ -350,7 +350,7 @@ def continuous_capture():
                                 chosen_hash = stem
                                 break
                         # Filename is the (possibly adjusted) hash
-                        out_name = f"{chosen_hash[:16]}.png"
+                        out_name = f"{chosen_hash}.png"
                         out_full = os.path.join(thumb_dir, out_name)
                         if not os.path.exists(out_full):
                             # Keep aspect ratio; target height 96
@@ -387,8 +387,8 @@ def continuous_capture():
                         if chosen:
                             item_key = chosen
                         else:
-                            # No close match: create new key with short hash suffix
-                            suffix = ("#" + (thumb_hash[:6] if thumb_hash else f"{int(time.time()) & 0xFFFFFF:06x}"))
+                            # No close match: create new key with full hash suffix
+                            suffix = ("#" + (thumb_hash if thumb_hash else f"{int(time.time()) & 0xFFFFFF:06x}"))
                             item_key = base_prefix + suffix
                     
                     # Track this card for visual feedback (check by category+clean name)

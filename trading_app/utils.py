@@ -29,23 +29,17 @@ def load_display_mapping() -> Dict[str, str]:
 
 
 def get_display_name(item_key: str) -> str:
-    """
-    Get the full display name for GUI from an item key.
-    
-    Args:
-        item_key: Composite key in format "category:cleanName"
-    
-    Returns:
-        Full display name if mapped, otherwise returns the clean name part
+    """Get the full display name for GUI from an exact item key.
+    The key must match exactly what is in the mapping (including any #hash suffix).
+    If no mapping is found, show the clean name portion to the user.
     """
     mapping = load_display_mapping()
     friendly = mapping.get(item_key)
     if friendly:
         return friendly
-    # Fallback: return just the display name without category prefix
-    if ':' in item_key:
-        return item_key.split(':', 1)[1]
-    return item_key
+    # Fallback: return just the name portion after the category for display
+    name_part = item_key.split(':', 1)[1] if ':' in item_key else item_key
+    return name_part
 
 
 @dataclass
@@ -123,7 +117,7 @@ def snapshots_to_dataframe(snapshots: List[Dict[str, Any]]) -> pd.DataFrame:
                 # Derive filename from hash: thumbs/<hash>.png
                 thumb_file = ''
                 thumb_path = f"thumbs/{thumb_hash}.png" if thumb_hash else ''
-                key_suffix = ("#" + thumb_hash[:6]) if thumb_hash else ""
+                key_suffix = ("#" + thumb_hash) if thumb_hash else ""
                 rows.append({
                     'timestamp': pd.to_datetime(ts, unit='s'),
                     'epoch': int(ts),
@@ -135,10 +129,10 @@ def snapshots_to_dataframe(snapshots: List[Dict[str, Any]]) -> pd.DataFrame:
                     'itemKey': f"{category}:{clean_name}{key_suffix}",
                 })
     if not rows:
-        return pd.DataFrame(columns=['timestamp', 'epoch', 'category', 'itemName', 'thumbHash', 'thumbPath', 'price', 'itemKey', 'friendlyName'])
+        return pd.DataFrame(columns=['timestamp', 'epoch', 'category', 'itemName', 'thumbHash', 'thumbPath', 'price', 'itemKey', 'displayName'])
     df = pd.DataFrame(rows)
-    # Add friendly names for GUI display
-    df['friendlyName'] = df['itemKey'].apply(get_display_name)
+    # Add display names for GUI
+    df['displayName'] = df['itemKey'].apply(get_display_name)
     # Sort by item key and time for historical analysis
     df.sort_values(['itemKey', 'epoch'], inplace=True)
     return df

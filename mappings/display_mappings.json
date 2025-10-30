@@ -1,8 +1,10 @@
 {
-  "_comment": "Map itemKeys (category:displayName) to full friendly names for GUI display",
-  "_instructions": "Key format is 'Category:Item Name', value is the full game name",
-  "_example": "'Helmet:SH40 Tactical...': 'SH40 Tactical Helmet'",
-  "Helmet:SH40 Tactical...": "SH40 Tactical Helmet",
-  "Body Armor:SH40 Tactical...": "SH40 Tactical Armor"
-}
+  "_comment": "Map exact itemKeys (Category:CleanName#fullThumbHash) to full friendly names for GUI display",
+  "_instructions": "Key must include the exact category, clean name, and the FULL thumbnail hash as shown in snapshots or the GUI (e.g., Helmet:Name#00003c3c3c3c0000). Value is the full in-game display name.",
+  "_example": "'Helmet:SH40 Tactical...#00003c3c3c3c0000': 'SH40 Tactical Helmet'",
+  "Building Materials:A Box of Nails#0100103c1c080000": "A Box of Nails",
+  "Unarmored Chest Rigs:Stormtrooper Type...#00243e3e3e7c3c00": "Stormtrooper Type 3 Tactical Chest Rig",
+  "Unarmored Chest Rigs:Stormtrooper Type...#00343c3c7e7e7c00": "Stormtrooper Type 4 Tactical Chest Rig",
+  "Unarmored Chest Rigs:Stormtrooper Type...#0100343c3c3c3800": "Stormtrooper Type 2 Chest Rig"
+  }
 
