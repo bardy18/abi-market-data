@@ -6,11 +6,36 @@ import time
 import datetime as dt
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional, Any
+from pathlib import Path
 
 import cv2
 import numpy as np
 import pytesseract
 import yaml
+
+
+# OCR name mapping cache
+_ocr_mapping = None
+
+def load_ocr_mapping() -> Dict[str, str]:
+    """Load the OCR to clean name mapping from ocr_mappings.json"""
+    global _ocr_mapping
+    if _ocr_mapping is None:
+        mapping_file = Path(__file__).parent.parent / 'mappings' / 'ocr_mappings.json'
+        if mapping_file.exists():
+            with open(mapping_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Filter out comment entries
+                _ocr_mapping = {k: v for k, v in data.items() if not k.startswith('_')}
+        else:
+            _ocr_mapping = {}
+    return _ocr_mapping
+
+
+def get_clean_name(ocr_name: str) -> str:
+    """Get the clean/deduplicated name for an OCR-extracted item name"""
+    mapping = load_ocr_mapping()
+    return mapping.get(ocr_name, ocr_name)
 
 
 @dataclass

@@ -15,8 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from collector.utils import load_config, detect_card_positions, extract_item_from_card, detect_selected_category
-from trading_app.utils import load_ocr_mapping, get_clean_name
+from collector.utils import load_config, detect_card_positions, extract_item_from_card, detect_selected_category, load_ocr_mapping, get_clean_name
 from difflib import SequenceMatcher
 
 
@@ -373,15 +372,16 @@ def continuous_capture():
         print("="*60)
         
         # Group items by category
-        # Use OCR names in snapshot for consistency with existing format
+        # Store clean names in snapshot (already deduplicated)
         categories = {}
         for item_key, data in collected_items.items():
-            # item_key format: "category:displayName"
+            # item_key format: "category:cleanName"
             category = data['category']
+            clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
             if category not in categories:
                 categories[category] = []
-            # Store OCR name in snapshot (raw captured data)
-            categories[category].append({'itemName': data['ocrName'], 'price': data['price']})
+            # Store clean name in snapshot (deduplicated name)
+            categories[category].append({'itemName': clean_name, 'price': data['price']})
         
         # Create snapshot
         snapshot = {

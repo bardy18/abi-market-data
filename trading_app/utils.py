@@ -10,24 +10,8 @@ import pandas as pd
 import numpy as np
 
 
-# Item name mapping
-_ocr_mapping = None
+# Display name mapping cache
 _display_mapping = None
-
-def load_ocr_mapping() -> Dict[str, str]:
-    """Load the OCR to display name mapping from ocr_mappings.json"""
-    global _ocr_mapping
-    if _ocr_mapping is None:
-        mapping_file = Path(__file__).parent.parent / 'mappings' / 'ocr_mappings.json'
-        if mapping_file.exists():
-            with open(mapping_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                # Filter out comment entries
-                _ocr_mapping = {k: v for k, v in data.items() if not k.startswith('_')}
-        else:
-            _ocr_mapping = {}
-    return _ocr_mapping
-
 
 def load_display_mapping() -> Dict[str, str]:
     """Load the display to friendly name mapping from display_mappings.json"""
@@ -42,12 +26,6 @@ def load_display_mapping() -> Dict[str, str]:
         else:
             _display_mapping = {}
     return _display_mapping
-
-
-def get_clean_name(ocr_name: str) -> str:
-    """Get the clean/deduplicated name for an OCR-extracted item name"""
-    mapping = load_ocr_mapping()
-    return mapping.get(ocr_name, ocr_name)
 
 
 def get_display_name(item_key: str) -> str:
@@ -68,15 +46,6 @@ def get_display_name(item_key: str) -> str:
     if ':' in item_key:
         return item_key.split(':', 1)[1]
     return item_key
-
-
-def get_ocr_name(clean_name: str) -> Optional[str]:
-    """Reverse lookup: get OCR name from clean name"""
-    mapping = load_ocr_mapping()
-    for ocr, clean in mapping.items():
-        if clean == clean_name:
-            return ocr
-    return None
 
 
 @dataclass
@@ -149,19 +118,16 @@ def snapshots_to_dataframe(snapshots: List[Dict[str, Any]]) -> pd.DataFrame:
         categories_data = snap.get('categories', {})
         for category, items in categories_data.items():
             for item in items:
-                ocr_name = item.get('itemName')
-                clean_name = get_clean_name(ocr_name)
+                clean_name = item.get('itemName')  # Already clean from snapshot
                 rows.append({
                     'timestamp': pd.to_datetime(ts, unit='s'),
                     'epoch': int(ts),
                     'category': category,
-                    'ocrName': ocr_name,  # Keep for reference/debugging
                     'itemName': clean_name,  # Use clean name as the tracking identifier
-                    'displayName': clean_name,  # For backward compatibility
                     'price': float(item.get('price', 0)),
                 })
     if not rows:
-        return pd.DataFrame(columns=['timestamp', 'epoch', 'category', 'ocrName', 'itemName', 'displayName', 'price', 'itemKey', 'friendlyName'])
+        return pd.DataFrame(columns=['timestamp', 'epoch', 'category', 'itemName', 'price', 'itemKey', 'friendlyName'])
     df = pd.DataFrame(rows)
     # Create composite key for unique identification (handles truncated names across categories)
     df['itemKey'] = df['category'] + ':' + df['itemName']
