@@ -8,7 +8,6 @@ import sys
 import os
 import time
 import json
-import pygetwindow as gw
 import pyautogui
 import numpy as np
 from datetime import datetime
@@ -19,20 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from collector.utils import load_config, detect_card_positions, extract_item_from_card, detect_selected_category
 from trading_app.utils import load_item_name_mapping, get_display_name
 from difflib import SequenceMatcher
-
-
-def focus_window(title: str):
-    """Find and focus a window by title"""
-    try:
-        windows = gw.getWindowsWithTitle(title)
-        if windows:
-            window = windows[0]
-            window.activate()
-            time.sleep(0.3)
-            return window
-    except Exception as e:
-        print(f"Warning: Could not focus window: {e}")
-    return None
 
 
 def make_snapshot_filename(base_dir: str, category: str = "Mixed") -> str:
@@ -132,15 +117,11 @@ def continuous_capture():
         import pytesseract
         pytesseract.pytesseract.tesseract_cmd = config.tesseract_path
     
-    # Try to focus window (optional - continues even if it fails)
-    print("\nLooking for game window...")
-    window = focus_window(config.window_title)
-    if window:
-        print(f"[OK] Found window: {window.title}")
-    else:
-        print(f"[!] Could not focus window, but continuing anyway...")
-        print("    Make sure game is visible and in upper-left corner")
-    time.sleep(1.0)
+    print("\nMake sure:")
+    print("  - Game is in windowed mode (1600x900)")
+    print("  - Game window is positioned in upper-left corner")
+    print("  - You're on the Market screen")
+    time.sleep(2.0)
     
     # Initialize collection
     # Use category+display name as key for deduplication (handles truncated names)

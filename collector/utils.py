@@ -15,7 +15,6 @@ import yaml
 
 @dataclass
 class CollectorConfig:
-    window_title: str
     resolution: Tuple[int, int]
     tesseract_path: str
     snapshots_path: str
@@ -30,7 +29,6 @@ def load_config(path: str) -> CollectorConfig:
     with open(path, 'r', encoding='utf-8') as f:
         cfg = yaml.safe_load(f)
     return CollectorConfig(
-        window_title=cfg.get('window_title', 'Arena Breakout: Infinite'),
         resolution=tuple(cfg.get('resolution', [1280, 720])),
         tesseract_path=cfg.get('tesseract_path', ''),
         snapshots_path=cfg.get('snapshots_path', 'snapshots'),

@@ -1,5 +1,4 @@
 # ABI Market Collector Configuration
-window_title: "Arena Breakout Infinite  "
 resolution: [1600, 900]
 tesseract_path: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
 snapshots_path: "snapshots"

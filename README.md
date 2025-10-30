@@ -264,10 +264,10 @@ This is purely cosmetic - backend tracking still uses the itemKey.
 
 ## Troubleshooting
 
-### Window Not Found
+### Screenshot Issues
 - Ensure game is in windowed mode (not fullscreen)
-- Position window in upper-left corner
-- Check window title matches: "Arena Breakout Infinite"
+- Position window in upper-left corner of your screen
+- Game resolution must be 1600x900
 
 ### Category Shows "Unknown"
 - The magenta box should highlight the selected menu item
