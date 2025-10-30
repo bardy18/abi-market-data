@@ -254,9 +254,9 @@ Maps exact `itemKey` values to GUI display labels (presentation only; tracking s
 
 ```json
 {
-  "Helmet:SH40 Tactical...": "SH40 Tactical Helmet",
-  "Body Armor:SH40 Tactical...": "SH40 Tactical Armor",
-  "Helmet:Aviator Helmet": "Aviator Flight Helmet"
+  "Helmet:SH40 Tactical...#01003c3c3c3c0000": "SH40 Tactical Helmet",
+  "Body Armor:SH40 Tactical...#01203c3c7c7c2000": "SH40 Tactical Armor",
+  "Helmet:Aviator Helmet#01343c3c3c3c3400": "Aviator Flight Helmet"
 }
 ```
 
