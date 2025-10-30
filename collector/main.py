@@ -76,9 +76,10 @@ def continuous_capture():
     print("  1. Start capture with SPACE")
     print("  2. Click and navigate in the game while pressing C to capture")
     print("  3. Hotkeys work globally - no need to click back to preview window!")
-    print("  4. Watch for green borders on newly captured items")
-    print("  5. Pause briefly on each screen so items are fully visible")
-    print("  6. Press ESC when done to save all captured items")
+    print("  4. Watch the processing time to gauge your capture speed")
+    print("  5. Watch for green borders on newly captured items")
+    print("  6. Pause briefly on each screen so items are fully visible")
+    print("  7. Press ESC when done to save all captured items")
     print("\n" + "="*60)
     print("\nStarting in 3 seconds...")
     time.sleep(3)
@@ -264,8 +265,31 @@ def continuous_capture():
                 cv2.imshow('ABI Market Capture', display)
                 continue
             
-            # Reset capture flag
+            # CAPTURE TRIGGERED - Process immediately!
             should_capture = False
+            capture_start_time = time.time()  # Track processing time
+            
+            # Show immediate feedback that capture is processing
+            processing_overlay = screenshot.copy()
+            # Add semi-transparent dark overlay
+            overlay = processing_overlay.copy()
+            cv2.rectangle(overlay, (0, 0), (overlay.shape[1], overlay.shape[0]), (0, 0, 0), -1)
+            processing_overlay = cv2.addWeighted(overlay, 0.5, processing_overlay, 0.5, 0)
+            # Add prominent text with outline for visibility
+            text = "PROCESSING..."
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 2.0
+            thickness = 4
+            text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+            text_x = (processing_overlay.shape[1] - text_size[0]) // 2
+            text_y = (processing_overlay.shape[0] + text_size[1]) // 2
+            # Draw black outline
+            cv2.putText(processing_overlay, text, (text_x, text_y), font, font_scale, (0, 0, 0), thickness+2)
+            # Draw cyan text
+            cv2.putText(processing_overlay, text, (text_x, text_y), font, font_scale, (0, 255, 255), thickness)
+            display_processing = cv2.resize(processing_overlay, (800, 450))
+            cv2.imshow('ABI Market Capture', display_processing)
+            cv2.waitKey(1)  # Force immediate display update
             
             # Detect the currently selected category from the left menu
             tree_cfg = config.ui_regions['tree_navigation']
@@ -343,12 +367,17 @@ def continuous_capture():
                         else:
                             print(f"  [{current_category}] {clean_name} - ${item_data['price']:,}")
             
+            # Calculate processing time
+            processing_time = time.time() - capture_start_time
+            
             # Optional: Uncomment to debug OCR success rate
             # print(f"[DEBUG] Detected: {len(card_positions)}, Checked: {cards_checked}, Visible: {cards_visible}, With data: {cards_with_data}")
             
             if new_items_this_capture > 0:
                 capture_count += 1
-                print(f"\n[{capture_count}] Captured {new_items_this_capture} new items (Total: {len(collected_items)})")
+                print(f"\n[{capture_count}] Captured {new_items_this_capture} new items in {processing_time:.2f}s (Total: {len(collected_items)})")
+            else:
+                print(f"[✓] Processed in {processing_time:.2f}s - No new items this screen")
             
             # Draw borders around ALL detected card positions (not just those with data)
             screenshot_with_borders = screenshot.copy()
@@ -388,7 +417,7 @@ def continuous_capture():
             display = cv2.resize(screenshot_with_borders, (800, 450))
             status = "CAPTURING" if capturing else "PAUSED"
             status_color = (0, 255, 0) if capturing else (0, 165, 255)
-            cv2.putText(display, f"{status} | Items: {len(collected_items)} | This view: {len(detected_cards)}", 
+            cv2.putText(display, f"{status} | Items: {len(collected_items)} | This view: {len(detected_cards)} | Processed: {processing_time:.2f}s", 
                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
             cv2.imshow('ABI Market Capture', display)
             

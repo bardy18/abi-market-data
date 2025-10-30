@@ -102,13 +102,17 @@ More frequent captures = better trend analysis!
 
 ### Speed
 - Each full marketplace scan takes **5-10 minutes**
-- Sights and Magazines have the most items
+- Processing time is shown after each capture (typically 1-3 seconds)
+- Watch the processing time to gauge your capture rhythm
 - You can pause (`SPACE`) and resume anytime
+- Sights and Magazines have the most items
 
 ### Accuracy
-- Pause briefly on each screen before scrolling
+- Press `C` when items are fully loaded and visible
+- A "PROCESSING..." overlay appears immediately when you press `C`
 - Watch for green borders on newly captured items
 - Light blue borders mean you've already captured those items - safe to scroll past
+- Processing time displayed shows OCR was completed
 
 ### Coverage
 - Always scan in the same order for consistency
