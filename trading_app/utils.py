@@ -8,7 +8,6 @@ from pathlib import Path
 import yaml
 import pandas as pd
 import numpy as np
-import boto3
 
 
 # Item name mapping
@@ -84,7 +83,6 @@ def get_ocr_name(display_name: str) -> Optional[str]:
 class TradingAppConfig:
     snapshots_path: str
     max_snapshots_to_load: int
-    s3: Dict[str, Any]
     alerts: Dict[str, Any]
 
 
@@ -94,35 +92,8 @@ def load_config(path: str) -> TradingAppConfig:
     return TradingAppConfig(
         snapshots_path=cfg.get('snapshots_path', 'snapshots'),
         max_snapshots_to_load=int(cfg.get('max_snapshots_to_load', 100)),
-        s3=cfg.get('s3', {}),
         alerts=cfg.get('alerts', {'ma_window': 5, 'spike_threshold_pct': 20.0, 'drop_threshold_pct': 20.0}),
     )
-
-
-# S3 Helpers
-
-def get_s3_client(region_name: Optional[str]) -> boto3.client:
-    if region_name:
-        return boto3.client('s3', region_name=region_name)
-    return boto3.client('s3')
-
-
-def s3_list_objects(bucket: str, prefix: str, region: Optional[str]) -> List[str]:
-    s3 = get_s3_client(region)
-    keys: List[str] = []
-    paginator = s3.get_paginator('list_objects_v2')
-    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-        for obj in page.get('Contents', []):
-            key = obj.get('Key')
-            if key and key.lower().endswith('.json'):
-                keys.append(key)
-    return keys
-
-
-def s3_download_file(bucket: str, key: str, local_path: str, region: Optional[str]) -> None:
-    os.makedirs(os.path.dirname(local_path), exist_ok=True)
-    s3 = get_s3_client(region)
-    s3.download_file(bucket, key, local_path)
 
 
 # Snapshot loading and analysis

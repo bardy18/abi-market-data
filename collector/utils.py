@@ -1,4 +1,4 @@
-"""Collector utilities for OCR, image processing, snapshots, and S3."""
+"""Collector utilities for OCR, image processing, and snapshots."""
 import os
 import re
 import json
@@ -10,7 +10,6 @@ from typing import Dict, List, Tuple, Optional, Any
 import cv2
 import numpy as np
 import pytesseract
-import boto3
 import yaml
 
 
@@ -19,10 +18,7 @@ class CollectorConfig:
     window_title: str
     resolution: Tuple[int, int]
     tesseract_path: str
-    polling_minutes: int
     snapshots_path: str
-    market_button: List[int]
-    s3: Dict[str, Any]
     ui_regions: Dict[str, Any]
     item_card: Dict[str, Any]
     navigation: Dict[str, Any]
@@ -37,10 +33,7 @@ def load_config(path: str) -> CollectorConfig:
         window_title=cfg.get('window_title', 'Arena Breakout: Infinite'),
         resolution=tuple(cfg.get('resolution', [1280, 720])),
         tesseract_path=cfg.get('tesseract_path', ''),
-        polling_minutes=int(cfg.get('polling_minutes', 15)),
         snapshots_path=cfg.get('snapshots_path', 'snapshots'),
-        market_button=cfg.get('market_button', [640, 700]),
-        s3=cfg.get('s3', {}),
         ui_regions=cfg.get('ui_regions', {}),
         item_card=cfg.get('item_card', {}),
         navigation=cfg.get('navigation', {}),
@@ -71,19 +64,6 @@ def write_snapshot(snapshot: Dict[str, Any], path: str) -> None:
     ensure_dir(os.path.dirname(path))
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(snapshot, f, ensure_ascii=False, indent=2)
-
-
-# S3 Helpers
-
-def get_s3_client(region_name: Optional[str]) -> boto3.client:
-    if region_name:
-        return boto3.client('s3', region_name=region_name)
-    return boto3.client('s3')
-
-
-def s3_upload_file(local_path: str, bucket: str, key: str, region: Optional[str]) -> None:
-    s3 = get_s3_client(region)
-    s3.upload_file(local_path, bucket, key)
 
 
 # OCR helpers
