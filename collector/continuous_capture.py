@@ -474,7 +474,7 @@ def continuous_capture():
             print("POTENTIAL OCR DUPLICATES DETECTED")
             print("="*60)
             print("These items have the same price and similar names in the same category.")
-            print("Consider adding mappings with: python collector/map_items.py\n")
+            print("Consider adding mappings to: mappings/ocr_mappings.json\n")
             for disp1, disp2, ocr1, ocr2, price, category in potential_duplicates:
                 print(f"  [{category}] ${price:,} - '{ocr1}' vs '{ocr2}'")
                 print(f"           (Display: '{disp1}' vs '{disp2}')")

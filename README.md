@@ -135,7 +135,6 @@ ABIMarketData/
 │   ├── continuous_capture.py  # Main collector script
 │   ├── vision_utils.py        # Computer vision & OCR
 │   ├── utils.py               # Helper functions
-│   ├── map_items.py           # OCR mapping utility
 │   └── config.yaml            # Collector settings
 ├── trading_app/               # GUI application
 │   ├── main.py                # GUI interface
@@ -228,13 +227,9 @@ The system uses a three-tier naming approach for maximum flexibility:
 
 ### OCR Mappings (`ocr_mappings.json`)
 
-Maps OCR variations to clean display names for deduplication:
+Maps OCR variations to clean display names for deduplication. Edit `mappings/ocr_mappings.json` manually:
 
-```bash
-python collector/map_items.py
-```
-
-Example `mappings/ocr_mappings.json`:
+Example:
 ```json
 {
   "Aviotor Helmet": "Aviator Helmet",
