@@ -61,6 +61,8 @@ class DataTable(QtWidgets.QTableView):
         super().__init__(parent)
         self.model_ = QtGui.QStandardItemModel(self)
         self.setModel(self.model_)
+        # Use a numeric sort role for columns where we store numeric values
+        self.model_.setSortRole(QtCore.Qt.UserRole)
         self.setSortingEnabled(True)
         # Disable in-place editing; changes must go through mapping dialog
         self.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -76,8 +78,19 @@ class DataTable(QtWidgets.QTableView):
             # Show display name in GUI if available, otherwise clean name
             display_name = row.get('displayName', row.get('itemName', ''))
             items.append(QtGui.QStandardItem(str(display_name)))
-            items.append(QtGui.QStandardItem(f"{row['price']:.0f}"))
-            items.append(QtGui.QStandardItem(f"{row.get('ma', np.nan):.1f}" if not pd.isna(row.get('ma', np.nan)) else ''))
+            # Price (money) - display text, but store numeric for sorting
+            price_val = float(row['price']) if not pd.isna(row['price']) else float('nan')
+            price_item = QtGui.QStandardItem(f"{price_val:.0f}")
+            price_item.setData(price_val, QtCore.Qt.UserRole)
+            items.append(price_item)
+            # MA (money) - display text or blank, store numeric (NaN -> -1 for consistent sorting)
+            ma_val = row.get('ma', np.nan)
+            ma_is_nan = pd.isna(ma_val)
+            ma_num = float(ma_val) if not ma_is_nan else -1.0
+            ma_text = f"{ma_num:.1f}" if not ma_is_nan else ''
+            ma_item = QtGui.QStandardItem(ma_text)
+            ma_item.setData(ma_num, QtCore.Qt.UserRole)
+            items.append(ma_item)
             items.append(QtGui.QStandardItem(f"{row.get('vol', np.nan):.1f}" if not pd.isna(row.get('vol', np.nan)) else ''))
             # Store itemKey in user role for proper item identification when clicking
             items[0].setData(row.get('itemKey', ''), QtCore.Qt.UserRole)

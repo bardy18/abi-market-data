@@ -243,7 +243,35 @@ def hue_bin_distance(a: int, b: int, bins: int = 12) -> int:
         return None
 
 
-_PRICE_RE = re.compile(r"([\-–—]|:)?\s*(\d{1,3}(?:[\,\.]\d{3})*|\d+)$")
+# Price parsing: allow common OCR confusions (O→0, l/I→1, S→5, B→8) and mixed separators
+_PRICE_RE = re.compile(r"([\-–—]|:)?\s*(?:\$\s*)?([0-9OoIiLlSsB]{1,3}(?:[\,\.\s][0-9OoIiLlSsB]{3})*|[0-9OoIiLlSsB]+)\s*$")
+
+
+def _normalize_ocr_digits(token: str) -> str:
+    """Normalize OCR-misread digits and strip thousand/decimal separators.
+    Keeps only 0-9 by mapping common confusions.
+    """
+    if not token:
+        return ""
+    mapping = {
+        'O': '0', 'o': '0',
+        'l': '1', 'I': '1', 'i': '1',
+        'S': '5', 's': '5',
+        'B': '8',
+    }
+    out_chars = []
+    for ch in token:
+        if ch.isdigit():
+            out_chars.append(ch)
+        elif ch in mapping:
+            out_chars.append(mapping[ch])
+        elif ch in [',', '.', ' ']:
+            # Skip separators entirely; we treat input as integer cents-free prices
+            continue
+        else:
+            # Ignore any other chars
+            continue
+    return ''.join(out_chars)
 
 
 def parse_ocr_lines(lines: List[str]) -> List[Dict[str, Any]]:
@@ -257,7 +285,10 @@ def parse_ocr_lines(lines: List[str]) -> List[Dict[str, Any]]:
             continue
         price_str = m.group(2)
         try:
-            price = int(re.sub(r"[\,\.]", "", price_str))
+            norm = _normalize_ocr_digits(price_str)
+            if not norm:
+                continue
+            price = int(norm)
         except ValueError:
             continue
         name = line[:m.start()].strip().strip('-:').strip()
@@ -450,12 +481,16 @@ def extract_item_from_card(card_image: np.ndarray, card_config: Dict[str, Any]) 
     price_text = pytesseract.image_to_string(price_gray, config='--psm 7 -c tessedit_char_whitelist=0123456789,$,. ').strip()
     
     # Parse price
-    price_match = re.search(r'(\d{1,3}(?:[\,\.]\d{3})*|\d+)', price_text)
+    price_match = _PRICE_RE.search(price_text)
     if not price_match:
         return None
     
     try:
-        price = int(re.sub(r'[\,\.]', '', price_match.group(1)))
+        price_token = price_match.group(2) if price_match.lastindex and price_match.lastindex >= 2 else price_match.group(0)
+        norm = _normalize_ocr_digits(price_token)
+        if not norm:
+            return None
+        price = int(norm)
     except ValueError:
         return None
     
