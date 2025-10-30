@@ -80,8 +80,6 @@ def continuous_capture():
     print("  6. Pause briefly on each screen so items are fully visible")
     print("  7. Press ESC when done to save all captured items")
     print("\n" + "="*60)
-    print("\nStarting in 3 seconds...")
-    time.sleep(3)
     
     # Load config (relative to this script's location)
     config_path = Path(__file__).parent / 'config.yaml'
@@ -100,7 +98,7 @@ def continuous_capture():
     print("  - Game is in windowed mode (1600x900)")
     print("  - Game window is positioned in upper-left corner")
     print("  - You're on the Market screen")
-    time.sleep(2.0)
+    # No startup wait; begin responsive loop immediately
     
     # Initialize collection
     # Use category+display name as key for deduplication (handles truncated names)
@@ -116,7 +114,7 @@ def continuous_capture():
     cv2.namedWindow('ABI Market Capture', cv2.WINDOW_NORMAL)
     cv2.resizeWindow('ABI Market Capture', 800, 450)
     
-    # Show initial status
+    # Show initial status (no startup delay)
     init_screen = np.zeros((450, 800, 3), dtype=np.uint8)
     cv2.putText(init_screen, "Press SPACE to start", 
                (200, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
@@ -148,7 +146,7 @@ def continuous_capture():
         last_category_bbox = None  # Category bbox for magenta border
         last_current_category = ""  # Category name
         last_capture_time = 0  # Time when last capture was made
-        border_display_duration = 3.0  # Show borders for 3 seconds after capture
+        border_display_duration = 1.5  # Show borders for ~1.5 seconds after capture
         
         while True:
             # Keyboard (window focus required)
