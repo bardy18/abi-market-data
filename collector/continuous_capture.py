@@ -18,6 +18,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from collector.utils import load_config
 from collector.vision_utils import detect_card_positions, extract_item_from_card, detect_selected_category
+from trading_app.utils import load_item_name_mapping, get_display_name
+from difflib import SequenceMatcher
 
 
 def focus_window(title: str):
@@ -122,6 +124,10 @@ def continuous_capture():
     # Load config
     config = load_config('collector/config.yaml')
     
+    # Load item name mapping for deduplication by display name
+    print("Loading item name mappings...")
+    load_item_name_mapping()  # Pre-load the mapping cache
+    
     # Set tesseract path
     if config.tesseract_path:
         import pytesseract
@@ -138,7 +144,8 @@ def continuous_capture():
     time.sleep(1.0)
     
     # Initialize collection
-    collected_items = {}  # itemName -> {price, category}
+    # Use category+display name as key for deduplication (handles truncated names)
+    collected_items = {}  # "category:displayName" -> {ocrName, price, category}
     capturing = False
     capture_count = 0
     
@@ -315,20 +322,30 @@ def continuous_capture():
                         cards_with_data += 1
                 
                 if item_data:
-                    item_name = item_data['itemName']
+                    ocr_name = item_data['itemName']
+                    display_name = get_display_name(ocr_name)  # Map to clean name
                     
-                    # Track this card for visual feedback
-                    is_new = item_name not in collected_items
+                    # Create category-aware key to handle truncated names
+                    # (e.g., "SH40 Tactical..." could be helmet or armor)
+                    item_key = f"{current_category}:{display_name}"
+                    
+                    # Track this card for visual feedback (check by category+display name)
+                    is_new = item_key not in collected_items
                     detected_cards.append((x, y, w, h, is_new))
                     
-                    # Add or update item (OCR name is the unique key)
+                    # Add or update item (category:display_name is the unique key)
                     if is_new:
-                        collected_items[item_name] = {
+                        collected_items[item_key] = {
+                            'ocrName': ocr_name,  # Store original OCR for reference
                             'price': item_data['price'],
                             'category': current_category  # Use detected category from orange menu item
                         }
                         new_items_this_capture += 1
-                        print(f"  [{current_category}] {item_name} - ${item_data['price']:,}")
+                        # Show both names if different
+                        if ocr_name != display_name:
+                            print(f"  [{current_category}] {display_name} (OCR: {ocr_name}) - ${item_data['price']:,}")
+                        else:
+                            print(f"  [{current_category}] {display_name} - ${item_data['price']:,}")
             
             # Optional: Uncomment to debug OCR success rate
             # print(f"[DEBUG] Detected: {len(card_positions)}, Checked: {cards_checked}, Visible: {cards_visible}, With data: {cards_with_data}")
@@ -403,12 +420,15 @@ def continuous_capture():
         print("="*60)
         
         # Group items by category
+        # Use OCR names in snapshot for consistency with existing format
         categories = {}
-        for name, data in collected_items.items():
+        for item_key, data in collected_items.items():
+            # item_key format: "category:displayName"
             category = data['category']
             if category not in categories:
                 categories[category] = []
-            categories[category].append({'itemName': name, 'price': data['price']})
+            # Store OCR name in snapshot (raw captured data)
+            categories[category].append({'itemName': data['ocrName'], 'price': data['price']})
         
         # Create snapshot
         snapshot = {
@@ -430,8 +450,35 @@ def continuous_capture():
             print(f"  {category}: {len(items)} items")
         print("\nTop 10 items by price:")
         sorted_items = sorted(collected_items.items(), key=lambda x: x[1]['price'], reverse=True)
-        for name, data in sorted_items[:10]:
-            print(f"  ${data['price']:>8,} - {name}")
+        for item_key, data in sorted_items[:10]:
+            # item_key format: "category:displayName" - extract display name for output
+            display_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
+            print(f"  ${data['price']:>8,} - [{data['category']}] {display_name}")
+        
+        # Check for potential OCR duplicates (similar names with same price in same category)
+        # This helps identify items that should be mapped together
+        potential_duplicates = []
+        items_list = list(collected_items.items())
+        for i, (key1, data1) in enumerate(items_list):
+            for key2, data2 in items_list[i+1:]:
+                # Same price and similar names (80%+ similarity) in same category
+                if data1['price'] == data2['price'] and data1['category'] == data2['category']:
+                    similarity = SequenceMatcher(None, data1['ocrName'].lower(), data2['ocrName'].lower()).ratio()
+                    if similarity >= 0.8:
+                        disp1 = key1.split(':', 1)[1] if ':' in key1 else key1
+                        disp2 = key2.split(':', 1)[1] if ':' in key2 else key2
+                        potential_duplicates.append((disp1, disp2, data1['ocrName'], data2['ocrName'], data1['price'], data1['category']))
+        
+        if potential_duplicates:
+            print("\n" + "="*60)
+            print("POTENTIAL OCR DUPLICATES DETECTED")
+            print("="*60)
+            print("These items have the same price and similar names in the same category.")
+            print("Consider adding mappings with: python collector/map_items.py\n")
+            for disp1, disp2, ocr1, ocr2, price, category in potential_duplicates:
+                print(f"  [{category}] ${price:,} - '{ocr1}' vs '{ocr2}'")
+                print(f"           (Display: '{disp1}' vs '{disp2}')")
+            print("="*60)
     else:
         print("\n[!] No items captured")
 

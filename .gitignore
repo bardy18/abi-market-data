@@ -37,7 +37,6 @@ debug_*/
 !README_images/*.png
 snapshots/*.json
 !snapshots/.gitkeep
-item_names.json
 
 # Logs
 *.log

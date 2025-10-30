@@ -135,13 +135,15 @@ ABIMarketData/
 │   ├── continuous_capture.py  # Main collector script
 │   ├── vision_utils.py        # Computer vision & OCR
 │   ├── utils.py               # Helper functions
-│   ├── map_items.py           # Item name mapping utility
-│   ├── item_names.json        # OCR name to display name mappings
+│   ├── map_items.py           # OCR mapping utility
 │   └── config.yaml            # Collector settings
 ├── trading_app/               # GUI application
 │   ├── main.py                # GUI interface
 │   ├── utils.py               # Data processing
 │   └── config.yaml            # App settings
+├── mappings/                  # Item name mappings
+│   ├── ocr_mappings.json      # OCR name → Display name
+│   └── display_mappings.json  # ItemKey → Friendly name
 ├── scripts/                   # Launcher scripts
 │   ├── capture_market.bat     # Windows launcher for collector
 │   └── view_market_data.bat   # Windows launcher for GUI
@@ -209,13 +211,62 @@ The Trading App loads ALL snapshots automatically for historical analysis.
 
 ## Item Name Mapping
 
-OCR may produce variations for the same item. Use the mapping tool to normalize names:
+The system uses a three-tier naming approach for maximum flexibility:
+
+1. **OCR Name** (raw capture): What the OCR reads from the card
+2. **Display Name** (normalized): Clean version for deduplication and tracking
+3. **Friendly Name** (full name): Complete item name shown in the GUI
+
+### How It Works
+
+1. **During Collection**: The collector checks `mappings/ocr_mappings.json` and uses display names as unique identifiers
+2. **Category-Aware Deduplication**: Items are uniquely identified by **category + display name** combination
+   - "SH40 Tactical..." in Helmet category is separate from "SH40 Tactical..." in Body Armor category
+   - Handles truncated names that look identical but are different items
+3. **Automatic Deduplication**: If OCR reads "Aviotor Helmet" after already capturing "Aviator Helmet" (same category), and both map to the same display name, only one item is kept
+4. **Duplicate Detection**: After collection, the system alerts you to potential duplicates (similar names with same price in same category)
+
+### OCR Mappings (`ocr_mappings.json`)
+
+Maps OCR variations to clean display names for deduplication:
 
 ```bash
 python collector/map_items.py
 ```
 
-This creates/updates `collector/item_names.json` for cleaner display names in the GUI.
+Example `mappings/ocr_mappings.json`:
+```json
+{
+  "Aviotor Helmet": "Aviator Helmet",
+  "Avjator Helmet": "Aviator Helmet"
+}
+```
+
+### Display Mappings (`display_mappings.json`)
+
+Maps itemKeys to full friendly names for GUI display. Edit `mappings/display_mappings.json` manually:
+
+```json
+{
+  "Helmet:SH40 Tactical...": "SH40 Tactical Helmet",
+  "Body Armor:SH40 Tactical...": "SH40 Tactical Armor",
+  "Helmet:Aviator Helmet": "Aviator Flight Helmet"
+}
+```
+
+**Key format**: `"Category:DisplayName": "Full Friendly Name"`
+
+This is purely cosmetic - backend tracking still uses the itemKey.
+
+### Benefits
+
+- **Cleaner Snapshots**: No duplicate items from OCR errors
+- **Handles Truncated Names**: Items with "..." ellipsis are correctly separated by category
+- **Better Historical Analysis**: Items are tracked consistently across snapshots by category + name
+- **Accurate Trending**: Price history isn't split between OCR variations or confused across categories
+- **Smart Visual Feedback**: Green borders only for truly new items in current category
+- **Correct GUI Charts**: Trading app properly trends items by category, preventing false price swings
+- **User-Friendly Display**: GUI shows full item names while backend uses efficient keys for tracking
 
 ## Troubleshooting
 

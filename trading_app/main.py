@@ -21,20 +21,34 @@ class TrendChart(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.canvas)
 
-    def plot(self, df: pd.DataFrame, item_name: str, display_name: str = None) -> None:
+    def plot(self, df: pd.DataFrame, item_key: str, display_name: str = None) -> None:
+        """
+        Plot price history for an item.
+        
+        Args:
+            df: Full dataframe
+            item_key: Composite key "category:itemName" for unique item identification
+            display_name: Optional display name for chart title
+        """
         self.figure.clear()
         ax = self.figure.add_subplot(111)
         if df.empty:
             ax.set_title('No data')
         else:
-            dfi = df[df['itemName'] == item_name]
+            # Filter by itemKey to handle items with same name in different categories
+            dfi = df[df['itemKey'] == item_key] if 'itemKey' in df.columns else df[df['itemName'] == item_key]
             if dfi.empty:
-                ax.set_title(f'No data for {display_name or item_name}')
+                ax.set_title(f'No data for {display_name or item_key}')
             else:
                 ax.plot(dfi['timestamp'], dfi['price'], label='Price', marker='o')
                 if 'ma' in dfi.columns:
                     ax.plot(dfi['timestamp'], dfi['ma'], label='MA', linestyle='--')
-                ax.set_title(display_name or item_name)
+                # Extract category and name for title if display_name not provided
+                if not display_name and ':' in item_key:
+                    category, name = item_key.split(':', 1)
+                    ax.set_title(f'[{category}] {name}')
+                else:
+                    ax.set_title(display_name or item_key)
                 ax.set_xlabel('Time')
                 ax.set_ylabel('Price')
                 ax.legend()
@@ -56,10 +70,14 @@ class DataTable(QtWidgets.QTableView):
             items = []
             items.append(QtGui.QStandardItem(row['timestamp'].strftime('%Y-%m-%d %H:%M')))
             items.append(QtGui.QStandardItem(str(row['category'])))
-            items.append(QtGui.QStandardItem(str(row['itemName'])))  # Display name (used for tracking)
+            # Show friendly name in GUI if available, otherwise display name
+            friendly_name = row.get('friendlyName', row.get('itemName', ''))
+            items.append(QtGui.QStandardItem(str(friendly_name)))
             items.append(QtGui.QStandardItem(f"{row['price']:.0f}"))
             items.append(QtGui.QStandardItem(f"{row.get('ma', np.nan):.1f}" if not pd.isna(row.get('ma', np.nan)) else ''))
             items.append(QtGui.QStandardItem(f"{row.get('vol', np.nan):.1f}" if not pd.isna(row.get('vol', np.nan)) else ''))
+            # Store itemKey in user role for proper item identification when clicking
+            items[0].setData(row.get('itemKey', ''), QtCore.Qt.UserRole)
             self.model_.appendRow(items)
         self.resizeColumnsToContents()
 
@@ -144,8 +162,11 @@ class MainWindow(QtWidgets.QMainWindow):
             df = df[df['category'] == cat]
         txt = self.item_edit.text().strip().lower()
         if txt:
-            # Search in both itemName (display name) and ocrName
-            df = df[df['itemName'].str.lower().str.contains(txt) | df['ocrName'].str.lower().str.contains(txt)]
+            # Search in itemName (display name), ocrName, and friendlyName
+            search_mask = df['itemName'].str.lower().str.contains(txt) | df['ocrName'].str.lower().str.contains(txt)
+            if 'friendlyName' in df.columns:
+                search_mask = search_mask | df['friendlyName'].str.lower().str.contains(txt)
+            df = df[search_mask]
         mn, mx = self.price_min.text().strip(), self.price_max.text().strip()
         if mn:
             try:
@@ -162,22 +183,35 @@ class MainWindow(QtWidgets.QMainWindow):
     def refresh_view(self) -> None:
         df = self._filtered_df()
         self.table.load(df)
-        # Update chart to the first available item (itemName is now the display name)
-        item = df['itemName'].iloc[-1] if not df.empty else ''
-        if item:
-            self.chart.plot(df, item, item)
+        # Update chart to the first available item using itemKey
+        if not df.empty:
+            item_key = df['itemKey'].iloc[-1] if 'itemKey' in df.columns else ''
+            if item_key:
+                # Use friendly name for chart title
+                category = df['category'].iloc[-1]
+                friendly_name = df['friendlyName'].iloc[-1] if 'friendlyName' in df.columns else df['itemName'].iloc[-1]
+                self.chart.plot(df, item_key, f'[{category}] {friendly_name}')
+            else:
+                self.chart.plot(pd.DataFrame(), '', '')
         else:
             self.chart.plot(pd.DataFrame(), '', '')
 
     def _on_table_clicked(self, index: QtCore.QModelIndex) -> None:
-        # Chart the clicked row's item
-        item_name_idx = 2  # itemName (display name) in table
+        # Chart the clicked row's item using itemKey
         model = self.table.model_
         if index.isValid():
             row = index.row()
-            item_name = model.item(row, item_name_idx).text()
+            # Get itemKey from stored user data
+            item_key = model.item(row, 0).data(QtCore.Qt.UserRole)
+            category = model.item(row, 1).text()
+            friendly_name = model.item(row, 2).text()  # This is now the friendly name
             df = self._filtered_df()
-            self.chart.plot(df, item_name, item_name)
+            if item_key:
+                # Use friendly name in chart title
+                self.chart.plot(df, item_key, f'[{category}] {friendly_name}')
+            else:
+                # Fallback for old data without itemKey
+                self.chart.plot(df, friendly_name, friendly_name)
 
     def _update_alerts(self) -> None:
         self.alerts_list.clear()

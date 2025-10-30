@@ -44,8 +44,8 @@ def show_unmapped_items():
 
 
 def add_mapping(ocr_name, display_name):
-    """Add a new mapping to item_names.json."""
-    mapping_file = Path(__file__).parent / 'item_names.json'
+    """Add a new mapping to ocr_mappings.json."""
+    mapping_file = Path(__file__).parent.parent / 'mappings' / 'ocr_mappings.json'
     
     # Load existing mappings
     if mapping_file.exists():

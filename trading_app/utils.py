@@ -13,12 +13,13 @@ import boto3
 
 # Item name mapping
 _name_mapping = None
+_friendly_name_mapping = None
 
 def load_item_name_mapping() -> Dict[str, str]:
-    """Load the manual item name mapping from item_names.json"""
+    """Load the OCR to display name mapping from ocr_mappings.json"""
     global _name_mapping
     if _name_mapping is None:
-        mapping_file = Path(__file__).parent.parent / 'collector' / 'item_names.json'
+        mapping_file = Path(__file__).parent.parent / 'mappings' / 'ocr_mappings.json'
         if mapping_file.exists():
             with open(mapping_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -29,10 +30,45 @@ def load_item_name_mapping() -> Dict[str, str]:
     return _name_mapping
 
 
+def load_friendly_name_mapping() -> Dict[str, str]:
+    """Load the display to friendly name mapping from display_mappings.json"""
+    global _friendly_name_mapping
+    if _friendly_name_mapping is None:
+        mapping_file = Path(__file__).parent.parent / 'mappings' / 'display_mappings.json'
+        if mapping_file.exists():
+            with open(mapping_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Filter out comment entries
+                _friendly_name_mapping = {k: v for k, v in data.items() if not k.startswith('_')}
+        else:
+            _friendly_name_mapping = {}
+    return _friendly_name_mapping
+
+
 def get_display_name(ocr_name: str) -> str:
     """Get the display name for an OCR-extracted item name"""
     mapping = load_item_name_mapping()
     return mapping.get(ocr_name, ocr_name)
+
+
+def get_friendly_name(item_key: str) -> str:
+    """
+    Get the friendly full name for GUI display.
+    
+    Args:
+        item_key: Composite key in format "category:displayName"
+    
+    Returns:
+        Friendly full name if mapped, otherwise returns the display name part
+    """
+    mapping = load_friendly_name_mapping()
+    friendly = mapping.get(item_key)
+    if friendly:
+        return friendly
+    # Fallback: return just the display name without category prefix
+    if ':' in item_key:
+        return item_key.split(':', 1)[1]
+    return item_key
 
 
 def get_ocr_name(display_name: str) -> Optional[str]:
@@ -131,6 +167,9 @@ def snapshots_to_dataframe(snapshots: List[Dict[str, Any]]) -> pd.DataFrame:
     
     Multiple OCR names (e.g., "Aviator Helmet", "Aviotor Helmet") will be combined
     into a single item for historical tracking if they map to the same display name.
+    
+    Items are uniquely identified by category + display name to handle truncated
+    names (e.g., "SH40 Tactical..." can exist in both Helmet and Body Armor categories).
     """
     rows: List[Dict[str, Any]] = []
     for snap in snapshots:
@@ -151,10 +190,14 @@ def snapshots_to_dataframe(snapshots: List[Dict[str, Any]]) -> pd.DataFrame:
                     'price': float(item.get('price', 0)),
                 })
     if not rows:
-        return pd.DataFrame(columns=['timestamp', 'epoch', 'category', 'ocrName', 'itemName', 'displayName', 'price'])
+        return pd.DataFrame(columns=['timestamp', 'epoch', 'category', 'ocrName', 'itemName', 'displayName', 'price', 'itemKey', 'friendlyName'])
     df = pd.DataFrame(rows)
-    # Sort by display name (itemName) and time for historical analysis
-    df.sort_values(['itemName', 'epoch'], inplace=True)
+    # Create composite key for unique identification (handles truncated names across categories)
+    df['itemKey'] = df['category'] + ':' + df['itemName']
+    # Add friendly names for GUI display
+    df['friendlyName'] = df['itemKey'].apply(get_friendly_name)
+    # Sort by item key and time for historical analysis
+    df.sort_values(['itemKey', 'epoch'], inplace=True)
     return df
 
 
@@ -162,8 +205,9 @@ def add_indicators(df: pd.DataFrame, ma_window: int = 5) -> pd.DataFrame:
     if df.empty:
         return df
     df = df.copy()
-    df['ma'] = df.groupby('itemName')['price'].transform(lambda s: s.rolling(ma_window, min_periods=1).mean())
-    df['vol'] = df.groupby('itemName')['price'].transform(lambda s: s.rolling(ma_window, min_periods=2).std().fillna(0.0))
+    # Group by itemKey (category:itemName) to handle items with same name in different categories
+    df['ma'] = df.groupby('itemKey')['price'].transform(lambda s: s.rolling(ma_window, min_periods=1).mean())
+    df['vol'] = df.groupby('itemKey')['price'].transform(lambda s: s.rolling(ma_window, min_periods=2).std().fillna(0.0))
     return df
 
 
@@ -171,15 +215,16 @@ def find_alerts(df: pd.DataFrame, spike_pct: float, drop_pct: float) -> List[str
     alerts: List[str] = []
     if df.empty:
         return alerts
-    latest = df.groupby('itemName').tail(1)
+    # Group by itemKey to handle items with same name in different categories
+    latest = df.groupby('itemKey').tail(1)
     for _, row in latest.iterrows():
         price = row['price']
         ma = row.get('ma', np.nan)
         if not np.isnan(ma) and ma > 0:
             delta_pct = (price - ma) / ma * 100.0
             if delta_pct >= spike_pct:
-                alerts.append(f"Spike: {row['itemName']} +{delta_pct:.1f}% vs MA")
+                alerts.append(f"Spike: [{row['category']}] {row['itemName']} +{delta_pct:.1f}% vs MA")
             elif delta_pct <= -drop_pct:
-                alerts.append(f"Drop: {row['itemName']} {delta_pct:.1f}% vs MA")
+                alerts.append(f"Drop: [{row['category']}] {row['itemName']} {delta_pct:.1f}% vs MA")
     return alerts
 

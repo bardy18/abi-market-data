@@ -1,0 +1,8 @@
+{
+  "_comment": "Map itemKeys (category:displayName) to full friendly names for GUI display",
+  "_instructions": "Key format is 'Category:Item Name', value is the full game name",
+  "_example": "'Helmet:SH40 Tactical...': 'SH40 Tactical Helmet'",
+  "Helmet:SH40 Tactical...": "SH40 Tactical Helmet",
+  "Body Armor:SH40 Tactical...": "SH40 Tactical Armor"
+}
+
