@@ -24,6 +24,7 @@ echo.
 echo Starting collector...
 echo.
 
+cd ..
 python collector/continuous_capture.py
 
 echo.
@@ -32,4 +33,5 @@ echo Collector finished!
 echo ============================================================
 echo.
 pause
+
 

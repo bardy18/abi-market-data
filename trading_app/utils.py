@@ -18,7 +18,7 @@ def load_item_name_mapping() -> Dict[str, str]:
     """Load the manual item name mapping from item_names.json"""
     global _name_mapping
     if _name_mapping is None:
-        mapping_file = Path(__file__).parent.parent / 'item_names.json'
+        mapping_file = Path(__file__).parent.parent / 'collector' / 'item_names.json'
         if mapping_file.exists():
             with open(mapping_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)

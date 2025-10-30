@@ -30,46 +30,102 @@ A computer vision-based market intelligence system for Arena Breakout: Infinite.
    - Edit `collector/config.yaml`
    - Set `tesseract_path` to your Tesseract installation
 
-### Usage
+### Collecting Market Data
 
-#### Collecting Market Data
+1. **Setup Game**:
+   - Launch Arena Breakout: Infinite
+   - Set to **Windowed mode** at **1600x900** resolution
+   - Position the window in the **upper-left corner** of your screen
+   - Navigate to the **Market** screen
 
-1. Launch Arena Breakout: Infinite
-2. Set to windowed mode (1600x900)
-3. Position window in upper-left corner
-4. Navigate to Market screen
-5. Run collector:
+2. **Start Collection**:
    ```bash
-   capture_market.bat
+   scripts\capture_market.bat
    ```
    Or:
    ```bash
    python collector/continuous_capture.py
    ```
 
-6. **Controls**:
-   - `SPACE` - Start/pause capture
-   - `ESC` - Save and finish
+3. **Controls**:
+   - `SPACE` - Start/pause capturing
+   - `ESC` - Finish and save snapshot
    - `Q` - Quit without saving
 
-7. **Navigate** through categories and scroll through items
-8. Watch for visual feedback:
-   - 🟢 **Green borders** = New items captured
-   - 🟠 **Orange borders** = Already captured
-   - 🟣 **Magenta box** = Current category detected
+4. **Collection Process**:
+   - Press `SPACE` to start
+   - Navigate through each category in the left menu
+   - The system will automatically detect which category you're viewing
+   - Scroll slowly through items in each category
+   - Wait for the white **flash** after each screen to confirm capture
+   - Watch for visual feedback:
+     - 🟢 **Green borders** = New items captured
+     - 🟠 **Orange borders** = Already captured (duplicates)
+     - 🟣 **Magenta box** = Category being detected
+   - Press `ESC` when you've captured all categories
 
-#### Viewing Data
+5. **What Gets Saved**:
+   - Snapshot file: `snapshots/YYYY-MM-DD_HH-MM.json`
+   - All items grouped by category
+   - Prices at time of capture
+
+### Viewing Your Data
 
 Launch the trading app:
 ```bash
-view_market_data.bat
+scripts\view_market_data.bat
 ```
 Or:
 ```bash
 python trading_app/main.py
 ```
 
-Browse all captured items, search by category or name, and view price trends.
+The GUI lets you:
+- Browse all captured items
+- Search/filter by category or name
+- View price history (with multiple snapshots)
+- Track trends and volatility
+
+## Recommended Scanning Schedule
+
+For best market tracking:
+
+- **Daily**: Capture once per day (same time each day)
+- **Weekly**: Capture 2-3 times per week
+- **Event-based**: After major game updates or events
+
+More frequent captures = better trend analysis!
+
+## Tips for Best Results
+
+### Speed
+- Each full marketplace scan takes **5-10 minutes**
+- Sights and Magazines have the most items
+- You can pause (`SPACE`) and resume anytime
+
+### Accuracy
+- Pause briefly on each screen before scrolling
+- Let items fully load before the flash
+- Orange borders mean you've already captured those items - safe to scroll past
+
+### Coverage
+- Always scan in the same order for consistency
+- Complete categories (typical item counts):
+  - Helmet (~40 items)
+  - Mask (~11 items)
+  - Body Armor (~30 items)
+  - Unarmored Chest Rigs (~17 items)
+  - Armored Rig (~17 items)
+  - Backpack (~20 items)
+  - Headset (~5 items)
+  - Gas Mask (~9 items)
+  - Sights (~100 items)
+  - Magazine (~150 items)
+
+### After Collection
+- Review the summary showing items per category
+- Check `snapshots/` folder for your new snapshot
+- Open Trading App to analyze your data
 
 ## Project Structure
 
@@ -79,17 +135,18 @@ ABIMarketData/
 │   ├── continuous_capture.py  # Main collector script
 │   ├── vision_utils.py        # Computer vision & OCR
 │   ├── utils.py               # Helper functions
+│   ├── map_items.py           # Item name mapping utility
+│   ├── item_names.json        # OCR name to display name mappings
 │   └── config.yaml            # Collector settings
 ├── trading_app/               # GUI application
 │   ├── main.py                # GUI interface
 │   ├── utils.py               # Data processing
 │   └── config.yaml            # App settings
+├── scripts/                   # Launcher scripts
+│   ├── capture_market.bat     # Windows launcher for collector
+│   └── view_market_data.bat   # Windows launcher for GUI
 ├── snapshots/                 # Market data snapshots
 │   └── .gitkeep
-├── map_items.py               # Item name mapping utility
-├── capture_market.bat         # Windows launcher for collector
-├── view_market_data.bat       # Windows launcher for GUI
-├── COLLECTION_GUIDE.md        # Detailed collection instructions
 ├── requirements.txt           # Python dependencies
 └── README.md                  # This file
 ```
@@ -108,7 +165,8 @@ ABIMarketData/
 
 ### Data Format
 
-Snapshots are saved as JSON:
+Snapshots are saved as JSON in the `snapshots/` directory:
+
 ```json
 {
   "timestamp": 1234567890,
@@ -122,6 +180,16 @@ Snapshots are saved as JSON:
   }
 }
 ```
+
+Example directory structure:
+```
+snapshots/
+  2025-10-29_22-25.json  (388 items)
+  2025-10-30_22-30.json  (next scan)
+  ...
+```
+
+The Trading App loads ALL snapshots automatically for historical analysis.
 
 ## Configuration
 
@@ -144,30 +212,22 @@ Snapshots are saved as JSON:
 OCR may produce variations for the same item. Use the mapping tool to normalize names:
 
 ```bash
-python map_items.py
+python collector/map_items.py
 ```
 
-This creates/updates `item_names.json` for cleaner display names in the GUI.
-
-## Tips for Best Results
-
-### Collection
-- **Consistency**: Scan at the same time each day/week
-- **Completeness**: Capture all categories in each scan
-- **Patience**: Pause briefly on each screen for the flash
-- **Navigation**: Orange borders show already-captured items
-
-### Analysis
-- **Multiple Snapshots**: Need 3+ snapshots for trend analysis
-- **Regular Intervals**: Daily/weekly scans reveal patterns
-- **Category Focus**: Track specific categories for targeted trading
+This creates/updates `collector/item_names.json` for cleaner display names in the GUI.
 
 ## Troubleshooting
 
-### "Window Not Found"
+### Window Not Found
 - Ensure game is in windowed mode (not fullscreen)
 - Position window in upper-left corner
-- Check window title matches config
+- Check window title matches: "Arena Breakout Infinite"
+
+### Category Shows "Unknown"
+- The magenta box should highlight the selected menu item
+- Make sure you've clicked on a category in the left menu
+- The orange highlight must be visible
 
 ### Poor OCR Accuracy
 - Verify Tesseract is installed and in PATH
@@ -175,9 +235,25 @@ This creates/updates `item_names.json` for cleaner display names in the GUI.
 - Ensure UI is not scaled/zoomed
 
 ### Missing Items
-- Scroll slower to give time for capture
+- Scroll slower and pause on each screen
 - Watch for white flash confirming capture
-- Adjust `navigation.scroll_pause` in config
+- Orange borders show already-captured items
+- Adjust `navigation.scroll_pause` in config if needed
+
+### Items Captured Multiple Times
+- Orange borders indicate duplicates - these are handled automatically
+- Only unique items are saved to the snapshot
+
+## What's Next?
+
+After your first few snapshots, you'll be able to:
+- Track price changes over time
+- Identify market trends
+- Find arbitrage opportunities
+- Get alerts on price spikes/drops
+- Calculate moving averages and volatility
+
+Happy trading! 🚀
 
 ## Contributing
 

@@ -21,6 +21,7 @@ echo.
 echo Loading snapshots...
 echo.
 
+cd ..
 python trading_app/main.py
 
 echo.
@@ -28,4 +29,5 @@ echo ============================================================
 echo Trading app closed
 echo ============================================================
 echo.
+
 
