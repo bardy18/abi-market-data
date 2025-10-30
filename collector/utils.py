@@ -298,6 +298,41 @@ def are_images_similar(img_a_bgr: np.ndarray, img_b_bgr: np.ndarray,
         return False
 
 
+def hsv_hist_similarity(img_a_bgr: np.ndarray, img_b_bgr: np.ndarray,
+                        sat_mask_threshold: int = 60,
+                        bins: int = 16,
+                        min_cosine: float = 0.965) -> bool:
+    """Compare HSV hue histograms under high-saturation mask. Returns True if cosine similarity >= min_cosine.
+    Focuses on label color/pattern robustness. Uses hue (0..180) histogram with 'bins' bins.
+    """
+    if img_a_bgr is None or img_b_bgr is None:
+        return False
+    if img_a_bgr.size == 0 or img_b_bgr.size == 0:
+        return False
+    try:
+        ta = cv2.resize(img_a_bgr, (96, 96), interpolation=cv2.INTER_AREA)
+        tb = cv2.resize(img_b_bgr, (96, 96), interpolation=cv2.INTER_AREA)
+        ha, sa, va = cv2.split(cv2.cvtColor(ta, cv2.COLOR_BGR2HSV))
+        hb, sb, vb = cv2.split(cv2.cvtColor(tb, cv2.COLOR_BGR2HSV))
+        mask_a = (sa >= sat_mask_threshold)
+        mask_b = (sb >= sat_mask_threshold)
+        ha = ha[mask_a]
+        hb = hb[mask_b]
+        if ha.size == 0 or hb.size == 0:
+            return False
+        hist_a, _ = np.histogram(ha, bins=bins, range=(0, 180), density=True)
+        hist_b, _ = np.histogram(hb, bins=bins, range=(0, 180), density=True)
+        # Cosine similarity
+        num = float(np.dot(hist_a, hist_b))
+        den = float(np.linalg.norm(hist_a) * np.linalg.norm(hist_b))
+        if den == 0.0:
+            return False
+        cos = num / den
+        return cos >= min_cosine
+    except Exception:
+        return False
+
+
 # Price parsing: allow common OCR confusions (O→0, l/I→1, S→5, B→8) and mixed separators
 _PRICE_RE = re.compile(r"([\-–—]|:)?\s*(?:\$\s*)?([0-9OoIiLlSsB]{1,3}(?:[\,\.\s][0-9OoIiLlSsB]{3})*|[0-9OoIiLlSsB]+)\s*$")
 

@@ -47,7 +47,7 @@ class TrendChart(QtWidgets.QWidget):
                 # Extract category and name for title if display_name not provided
                 if not display_name and ':' in item_key:
                     category, name = item_key.split(':', 1)
-                    ax.set_title(f'[{category}] {name}')
+                    ax.set_title(name)
                 else:
                     ax.set_title(display_name or item_key)
                 ax.set_xlabel('Time')
@@ -61,41 +61,102 @@ class DataTable(QtWidgets.QTableView):
         super().__init__(parent)
         self.model_ = QtGui.QStandardItemModel(self)
         self.setModel(self.model_)
-        # Use a numeric sort role for columns where we store numeric values
-        self.model_.setSortRole(QtCore.Qt.UserRole)
+        # Use a dedicated numeric sort role to avoid display text interference
+        self.sort_role = int(QtCore.Qt.UserRole) + 5
+        self.model_.setSortRole(self.sort_role)
         self.setSortingEnabled(True)
+        # Icons are not used in the move column; rely on text color only
         # Disable in-place editing; changes must go through mapping dialog
         self.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        # Ensure header sorting drives model sorting by our numeric role
+        try:
+            header = self.horizontalHeader()
+            header.setSortIndicatorShown(True)
+            header.sortIndicatorChanged.connect(lambda section, order: self.model_.sort(section, order))
+        except Exception:
+            pass
 
     def load(self, df: pd.DataFrame) -> None:
         self.model_.clear()
-        headers = ['timestamp', 'category', 'itemName', 'price', 'ma', 'vol']
+        headers = ['move', 'category', 'itemName', 'price', 'ma', 'vol', 'vol%']
         self.model_.setHorizontalHeaderLabels(headers)
         for _, row in df.iterrows():
             items = []
-            items.append(QtGui.QStandardItem(row['timestamp'].strftime('%Y-%m-%d %H:%M')))
-            items.append(QtGui.QStandardItem(str(row['category'])))
+            # Status/move column: icon + delta text
+            price_val = float(row['price']) if not pd.isna(row['price']) else float('nan')
+            ma_val = row.get('ma', np.nan)
+            delta_pct = float('nan')
+            if not pd.isna(ma_val) and ma_val != 0:
+                delta_pct = (price_val - float(ma_val)) / float(ma_val) * 100.0
+            # Determine direction
+            direction = 'flat'
+            if not pd.isna(delta_pct):
+                if delta_pct >= 0.1:
+                    direction = 'up'
+                elif delta_pct <= -0.1:
+                    direction = 'down'
+            # Create item with icon and text
+            move_item = QtGui.QStandardItem(f"{delta_pct:+.1f}%" if not pd.isna(delta_pct) else '')
+            # Numeric sort key for move column (separate role)
+            move_item.setData(float(delta_pct) if not pd.isna(delta_pct) else 0.0, self.sort_role)
+            # Choose color by direction
+            if direction == 'up':
+                color = QtGui.QColor(0, 150, 0)
+                move_item.setForeground(QtGui.QBrush(color))
+            elif direction == 'down':
+                color = QtGui.QColor(180, 0, 0)
+                move_item.setForeground(QtGui.QBrush(color))
+            else:
+                color = QtGui.QColor(128, 128, 128)
+                move_item.setForeground(QtGui.QBrush(color))
+            items.append(move_item)
+            # Category with case-insensitive sort key
+            cat_text = str(row['category'])
+            cat_item = QtGui.QStandardItem(cat_text)
+            try:
+                cat_item.setData(cat_text.lower(), self.sort_role)
+            except Exception:
+                pass
+            items.append(cat_item)
             # Show display name in GUI if available, otherwise clean name
             display_name = row.get('displayName', row.get('itemName', ''))
-            items.append(QtGui.QStandardItem(str(display_name)))
+            name_item = QtGui.QStandardItem(str(display_name))
+            # Provide a case-insensitive sort key for proper alpha sorting
+            try:
+                name_item.setData(str(display_name).lower(), self.sort_role)
+            except Exception:
+                pass
+            items.append(name_item)
             # Price (money) - display text, but store numeric for sorting
-            price_val = float(row['price']) if not pd.isna(row['price']) else float('nan')
             price_item = QtGui.QStandardItem(f"{price_val:.0f}")
-            price_item.setData(price_val, QtCore.Qt.UserRole)
+            price_item.setData(price_val, self.sort_role)
             items.append(price_item)
             # MA (money) - display text or blank, store numeric (NaN -> -1 for consistent sorting)
-            ma_val = row.get('ma', np.nan)
             ma_is_nan = pd.isna(ma_val)
             ma_num = float(ma_val) if not ma_is_nan else -1.0
             ma_text = f"{ma_num:.1f}" if not ma_is_nan else ''
             ma_item = QtGui.QStandardItem(ma_text)
-            ma_item.setData(ma_num, QtCore.Qt.UserRole)
+            ma_item.setData(ma_num, self.sort_role)
             items.append(ma_item)
-            items.append(QtGui.QStandardItem(f"{row.get('vol', np.nan):.1f}" if not pd.isna(row.get('vol', np.nan)) else ''))
+            # Volatility absolute
+            vol_val = row.get('vol', np.nan)
+            vol_item = QtGui.QStandardItem(f"{float(vol_val):.1f}" if not pd.isna(vol_val) else '')
+            vol_item.setData(float(vol_val) if not pd.isna(vol_val) else 0.0, self.sort_role)
+            items.append(vol_item)
+            # Volatility percent
+            vol_pct = row.get('volPct', np.nan) if 'volPct' in row else np.nan
+            vol_pct_item = QtGui.QStandardItem(f"{float(vol_pct):.1f}%" if not pd.isna(vol_pct) else '')
+            vol_pct_item.setData(float(vol_pct) if not pd.isna(vol_pct) else 0.0, self.sort_role)
+            items.append(vol_pct_item)
             # Store itemKey in user role for proper item identification when clicking
             items[0].setData(row.get('itemKey', ''), QtCore.Qt.UserRole)
             self.model_.appendRow(items)
         self.resizeColumnsToContents()
+        # Default sort: biggest gainers at the top (by numeric sort role)
+        try:
+            self.model_.sort(0, QtCore.Qt.SortOrder.DescendingOrder)
+        except Exception:
+            pass
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -147,6 +208,11 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.addWidget(QtWidgets.QLabel('Top Movers'))
         left_layout.addWidget(self.alerts_list)
 
+        # Top Volatility
+        self.vol_list = QtWidgets.QListWidget(self)
+        left_layout.addWidget(QtWidgets.QLabel('Top Volatility'))
+        left_layout.addWidget(self.vol_list)
+
         # Right: Chart + Table + Thumbnail
         right = QtWidgets.QWidget(self)
         right_layout = QtWidgets.QVBoxLayout(right)
@@ -176,10 +242,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # Note: selectionModel is available after model is set in DataTable
         self.table.selectionModel().currentChanged.connect(self._on_table_current_changed)
         self.alerts_list.itemClicked.connect(self._on_alert_clicked)
+        self.vol_list.itemClicked.connect(self._on_vol_clicked)
 
         # Initial load
         self.refresh_view()
         self._update_alerts()
+        self._update_volatility()
 
     def _filtered_df(self) -> pd.DataFrame:
         df = self.df_all
@@ -278,16 +346,17 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.table.setCurrentIndex(idx_sel)
         finally:
             self.table.setUpdatesEnabled(True)
-        # Update chart to the first available item using itemKey
+        # Ensure a row is selected and chart/thumbnail shown
         if not df.empty:
-            item_key = df['itemKey'].iloc[-1] if 'itemKey' in df.columns else ''
-            if item_key:
-                # Use display name for chart title
-                category = df['category'].iloc[-1]
-                display_name = df['displayName'].iloc[-1] if 'displayName' in df.columns else df['itemName'].iloc[-1]
-                self.chart.plot(df_full, item_key, f'[{category}] {display_name}')
+            current = self.table.currentIndex()
+            if not current.isValid():
+                # Select first row
+                idx0 = self.table.model_.index(0, 0)
+                if idx0.isValid():
+                    self.table.setCurrentIndex(idx0)
+                    self._on_table_clicked(idx0)
             else:
-                self.chart.plot(pd.DataFrame(), '', '')
+                self._on_table_clicked(current)
         else:
             self.chart.plot(pd.DataFrame(), '', '')
 
@@ -303,7 +372,7 @@ class MainWindow(QtWidgets.QMainWindow):
             df_full = self._filtered_df()
             if item_key:
                 # Use display name in chart title
-                self.chart.plot(df_full, item_key, f'[{category}] {display_name}')
+                self.chart.plot(df_full, item_key, display_name)
             else:
                 # Fallback for old data without itemKey
                 self.chart.plot(df_full, display_name, display_name)
@@ -381,6 +450,22 @@ class MainWindow(QtWidgets.QMainWindow):
                     item.setIcon(icon)
             self.alerts_list.addItem(item)
 
+    def _update_volatility(self) -> None:
+        self.vol_list.clear()
+        tops = utils.find_top_volatility(self.df_all, top_n=10)
+        for v in tops:
+            item = QtWidgets.QListWidgetItem(v.get('text', ''))
+            item.setData(QtCore.Qt.UserRole, v.get('itemKey', ''))
+            item.setData(QtCore.Qt.UserRole + 1, v.get('category', ''))
+            # Add an exclamation icon to indicate volatility
+            try:
+                icon = self._make_vol_icon(QtGui.QColor(255, 140, 0))  # orange
+                if icon is not None:
+                    item.setIcon(icon)
+            except Exception:
+                pass
+            self.vol_list.addItem(item)
+
     def _on_alert_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
         # Select the corresponding row in the table and update chart/thumbnail
         item_key = item.data(QtCore.Qt.UserRole)
@@ -414,6 +499,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.table.scrollTo(idx, QtWidgets.QAbstractItemView.PositionAtCenter)
                 self._on_table_clicked(idx)
 
+    def _on_vol_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
+        # Reuse the same behavior as alert click for volatility items
+        self._on_alert_clicked(item)
+
     def _make_alert_icon(self, color: QtGui.QColor, direction: str = 'up') -> QtGui.QIcon:
         # Create a small triangle icon with the given color and orientation
         size = 12
@@ -442,6 +531,29 @@ class MainWindow(QtWidgets.QMainWindow):
                     QtCore.QPointF(size-2.0, size-2.0),
                 ]
             painter.drawPolygon(QtGui.QPolygonF(points))
+        finally:
+            painter.end()
+        return QtGui.QIcon(pm)
+
+    def _make_vol_icon(self, color: QtGui.QColor) -> QtGui.QIcon:
+        # Draw a small exclamation mark icon
+        size = 12
+        pm = QtGui.QPixmap(size, size)
+        pm.fill(QtCore.Qt.GlobalColor.transparent)
+        painter = QtGui.QPainter(pm)
+        try:
+            painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+            pen = QtGui.QPen(color)
+            pen.setWidth(2)
+            pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen)
+            painter.setBrush(color)
+            # Draw vertical line
+            x = size / 2.0
+            # Shorten line so it doesn't touch the dot
+            painter.drawLine(int(x), 2, int(x), size - 6)
+            # Draw dot
+            painter.drawEllipse(QtCore.QPointF(x, size - 2), 1.2, 1.2)
         finally:
             painter.end()
         return QtGui.QIcon(pm)

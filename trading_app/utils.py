@@ -164,6 +164,11 @@ def add_indicators(df: pd.DataFrame, ma_window: int = 5) -> pd.DataFrame:
     # Group by itemKey (category:itemName) to handle items with same name in different categories
     df['ma'] = df.groupby('itemKey')['price'].transform(lambda s: s.rolling(ma_window, min_periods=1).mean())
     df['vol'] = df.groupby('itemKey')['price'].transform(lambda s: s.rolling(ma_window, min_periods=2).std().fillna(0.0))
+    # Relative volatility (% of MA). If MA == 0, set to 0 to avoid inf
+    df['volPct'] = 0.0
+    with pd.option_context('mode.use_inf_as_na', True):
+        mask = df['ma'] > 0
+        df.loc[mask, 'volPct'] = (df.loc[mask, 'vol'] / df.loc[mask, 'ma']) * 100.0
     return df
 
 
@@ -197,4 +202,34 @@ def find_alerts(df: pd.DataFrame, spike_pct: float, drop_pct: float) -> List[Dic
                     'category': row['category'],
                 })
     return alerts
+
+
+def find_top_volatility(df: pd.DataFrame, top_n: int = 10) -> List[Dict[str, Any]]:
+    """Return top-N most volatile items using the latest row per itemKey.
+    Vol is the rolling std dev over the MA window (computed in add_indicators)."""
+    out: List[Dict[str, Any]] = []
+    if df.empty:
+        return out
+    latest = df.groupby('itemKey').tail(1)
+    latest = latest.copy()
+    if 'vol' not in latest.columns:
+        return out
+    latest = latest.dropna(subset=['vol'])
+    if latest.empty:
+        return out
+    # Prefer sorting by relative volatility if available
+    sort_col = 'volPct' if 'volPct' in latest.columns else 'vol'
+    latest.sort_values(sort_col, ascending=False, inplace=True)
+    for _, row in latest.head(max(1, int(top_n))).iterrows():
+        disp_name = row.get('displayName', row.get('itemName', ''))
+        vol_val = float(row.get('vol', 0.0))
+        vol_pct = float(row.get('volPct', 0.0)) if 'volPct' in row else 0.0
+        out.append({
+            'text': f"{disp_name} {vol_pct:.1f}%",
+            'itemKey': row['itemKey'],
+            'category': row['category'],
+            'vol': vol_val,
+            'volPct': vol_pct,
+        })
+    return out
 

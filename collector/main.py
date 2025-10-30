@@ -29,6 +29,7 @@ from collector.utils import (
     compute_color_signature,
     hue_bin_distance,
     are_images_similar,
+    hsv_hist_similarity,
 )
 from difflib import SequenceMatcher
 
@@ -118,6 +119,24 @@ def continuous_capture():
     collected_items = {}  # "category:displayName" -> {ocrName, price, category}
     capturing = False
     capture_count = 0
+    # Cross-run reuse: preload known hashes from display mappings
+    base_to_hash = {}
+    try:
+        mappings_path = Path(__file__).parent.parent / 'mappings' / 'display_mappings.json'
+        if mappings_path.exists():
+            with open(mappings_path, 'r', encoding='utf-8') as f:
+                disp_map = json.load(f)
+            for k in disp_map.keys():
+                if ':' in k:
+                    cat, rest = k.split(':', 1)
+                else:
+                    cat, rest = '', k
+                clean = rest.split('#', 1)[0]
+                h = rest.split('#', 1)[1] if '#' in rest else ''
+                if cat and clean and h:
+                    base_to_hash[f"{cat}:{clean}"] = h
+    except Exception:
+        base_to_hash = {}
     
     print("\n" + "="*60)
     print("READY! Press SPACE to start capturing...")
@@ -337,6 +356,13 @@ def continuous_capture():
                     thumb_path = ""
                     h, w = thumb_img.shape[:2]
                     chosen_hash = thumb_hash
+                    # Cross-run reuse: prefer known mapping if file exists
+                    base_prefix = f"{current_category}:{clean_name}"
+                    known_hash = base_to_hash.get(base_prefix)
+                    if known_hash:
+                        known_file = os.path.join(thumb_dir, f"{known_hash}.png")
+                        if os.path.exists(known_file):
+                            chosen_hash = known_hash
                     if h > 0 and w > 0 and thumb_hash:
                         # If a very similar hash already exists, reuse that filename
                         existing_files = []
@@ -344,7 +370,9 @@ def continuous_capture():
                             existing_files = [f for f in os.listdir(thumb_dir) if f.lower().endswith('.png')]
                         except Exception:
                             existing_files = []
-                        chosen_hash = thumb_hash
+                        # Only run similarity passes if not already set by known mapping
+                        if not (known_hash and chosen_hash == known_hash):
+                            chosen_hash = thumb_hash
                         for fn in existing_files:
                             stem = os.path.splitext(fn)[0]
                             dist = hamming_distance_hex(thumb_hash, stem)
@@ -368,34 +396,53 @@ def continuous_capture():
                                 break
                         # Second pass: if not chosen by hash, do visual similarity against near candidates
                         if chosen_hash == thumb_hash and existing_files:
-                            # Limit candidates by relaxed hash distance and similar HSV
-                            candidates = []
-                            for fn in existing_files:
-                                stem = os.path.splitext(fn)[0]
-                                dist = hamming_distance_hex(thumb_hash, stem)
-                                if dist is None or dist > 12:
-                                    continue
-                                hsv_ok = True
+                            # Broad visual similarity search across existing thumbs (no hash-distance gate)
+                            best_fn = ''
+                            best_cos = 0.0
+                            best_ok_struct = False
+                            # Limit to first 500 files for performance
+                            for fn in existing_files[:500]:
                                 try:
-                                    if len(thumb_hash) >= 22 and len(stem) >= 22:
-                                        hsv_a = thumb_hash[-6:]
-                                        hsv_b = stem[-6:]
-                                        ha, sa, va = int(hsv_a[0:2], 16), int(hsv_a[2:4], 16), int(hsv_a[4:6], 16)
-                                        hb, sb, vb = int(hsv_b[0:2], 16), int(hsv_b[2:4], 16), int(hsv_b[4:6], 16)
-                                        hsv_ok = (abs(ha - hb) <= 25) and (abs(sa - sb) <= 60)
-                                except Exception:
-                                    hsv_ok = True
-                                if hsv_ok:
-                                    candidates.append(fn)
-                            # Compare visual similarity (multi-metric) with at most first 40 candidates
-                            for fn in candidates[:40]:
-                                try:
-                                    cand_img = cv2.imread(os.path.join(thumb_dir, fn))
-                                    if are_images_similar(thumb_img, cand_img, gray_rmse_threshold=9.0, hue_rmse_threshold=14.0, sat_mask_threshold=60, masked_gray_rmse_threshold=12.0):
-                                        chosen_hash = os.path.splitext(fn)[0]
+                                    cand_path = os.path.join(thumb_dir, fn)
+                                    cand_img = cv2.imread(cand_path)
+                                    if cand_img is None:
+                                        continue
+                                    cos_ok = hsv_hist_similarity(
+                                        thumb_img, cand_img,
+                                        sat_mask_threshold=60,
+                                        bins=16,
+                                        min_cosine=0.0,
+                                    )
+                                    # Compute actual cosine to rank (recompute inside helper is fine; small cost)
+                                    # Quick reject: if not similar by color histogram at all, skip
+                                    if not cos_ok:
+                                        continue
+                                    # Re-evaluate with threshold by directly computing cosine
+                                    # We approximate by calling again with higher threshold to avoid extra code
+                                    strong_color = hsv_hist_similarity(
+                                        thumb_img, cand_img,
+                                        sat_mask_threshold=60,
+                                        bins=16,
+                                        min_cosine=0.985,
+                                    )
+                                    if not strong_color:
+                                        continue
+                                    # Confirm with structural similarity at slightly relaxed thresholds
+                                    ok_struct = are_images_similar(
+                                        thumb_img, cand_img,
+                                        gray_rmse_threshold=11.0,
+                                        hue_rmse_threshold=18.0,
+                                        sat_mask_threshold=60,
+                                        masked_gray_rmse_threshold=14.0,
+                                    )
+                                    if ok_struct:
+                                        best_fn = fn
+                                        best_ok_struct = True
                                         break
                                 except Exception:
                                     continue
+                            if best_ok_struct and best_fn:
+                                chosen_hash = os.path.splitext(best_fn)[0]
                         # Filename is the (possibly adjusted) hash
                         out_name = f"{chosen_hash}.png"
                         out_full = os.path.join(thumb_dir, out_name)
