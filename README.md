@@ -218,11 +218,16 @@ The Trading App loads ALL snapshots automatically for historical analysis. Each 
 
 ## Item Name Mapping
 
-The system uses a three-tier naming approach for maximum flexibility:
+The system uses a two-tier naming approach, plus an optional GUI display name:
 
 1. **OCR Name** (raw capture): What the OCR reads from the card
-2. **Display Name** (normalized): Clean version for deduplication and tracking
-3. **Friendly Name** (full name): Complete item name shown in the GUI
+2. **Clean Name** (normalized): Used for deduplication and tracking
+3. **Display Name** (GUI-only): Optional label mapped by exact `itemKey` for presentation
+
+Notes:
+- The Trading App shows the Display Name if present; otherwise it shows the Clean Name.
+- Display names are mapped in `mappings/display_mappings.json` or set via double-click in the GUI.
+- Backend tracking and grouping always use the exact `itemKey` (category + clean name, with optional `#hash`).
 
 ### How It Works
 
@@ -247,7 +252,7 @@ Example:
 
 ### Display Mappings (`display_mappings.json`)
 
-Maps itemKeys to full friendly names for GUI display. Edit `mappings/display_mappings.json` manually:
+Maps exact `itemKey` values to GUI display labels (presentation only; tracking still uses the exact `itemKey`). Edit `mappings/display_mappings.json` manually:
 
 ```json
 {
@@ -257,9 +262,9 @@ Maps itemKeys to full friendly names for GUI display. Edit `mappings/display_map
 }
 ```
 
-**Key format**: `"Category:DisplayName": "Full Friendly Name"`
+**Key format**: `"Category:CleanName[#hash]": "GUI display label"`
 
-This is purely cosmetic - backend tracking still uses the itemKey.
+This is purely cosmetic - backend tracking still uses the exact `itemKey`.
 
 ### Benefits
 
