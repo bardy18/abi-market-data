@@ -40,11 +40,11 @@ A computer vision-based market intelligence system for Arena Breakout: Infinite.
 
 2. **Start Collection**:
    ```bash
-   scripts\capture_market.bat
+   scripts\capture_market_data.bat
    ```
    Or:
    ```bash
-   python collector/continuous_capture.py
+   python collector/main.py
    ```
 
 3. **Controls**:
@@ -132,20 +132,19 @@ More frequent captures = better trend analysis!
 ```
 ABIMarketData/
 ├── collector/                 # Data collection module
-│   ├── continuous_capture.py  # Main collector script
-│   ├── vision_utils.py        # Computer vision & OCR
-│   ├── utils.py               # Helper functions
+│   ├── main.py                # Main collector script
+│   ├── utils.py               # Utilities (config, OCR, computer vision)
 │   └── config.yaml            # Collector settings
 ├── trading_app/               # GUI application
 │   ├── main.py                # GUI interface
-│   ├── utils.py               # Data processing
+│   ├── utils.py               # Data processing utilities
 │   └── config.yaml            # App settings
 ├── mappings/                  # Item name mappings
 │   ├── ocr_mappings.json      # OCR name → Display name
 │   └── display_mappings.json  # ItemKey → Friendly name
 ├── scripts/                   # Launcher scripts
-│   ├── capture_market.bat     # Windows launcher for collector
-│   └── view_market_data.bat   # Windows launcher for GUI
+│   ├── capture_market_data.bat  # Windows launcher for collector
+│   └── view_market_data.bat     # Windows launcher for GUI
 ├── snapshots/                 # Market data snapshots
 │   └── .gitkeep
 ├── requirements.txt           # Python dependencies

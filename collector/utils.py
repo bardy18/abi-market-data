@@ -1,4 +1,4 @@
-"""Collector utilities for OCR, image processing, and snapshots."""
+"""Collector utilities for config, OCR, image processing, computer vision, and snapshots."""
 import os
 import re
 import json
@@ -132,3 +132,187 @@ def capture_and_ocr(region: Tuple[int, int, int, int], preprocess_cfg: Dict[str,
     lines = [ln for ln in text.splitlines() if ln.strip()]
     return parse_ocr_lines(lines)
 
+
+# Computer vision for UI discovery
+
+def detect_selected_category(tree_region: np.ndarray, tesseract_path: str = None) -> Tuple[str, Optional[Tuple[int, int, int, int]]]:
+    """
+    Detect the currently selected category by finding the orange-highlighted menu item.
+    Returns tuple of (category_name, bounding_box) where bounding_box is (x, y, w, h) or None.
+    """
+    if tesseract_path:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_path
+    
+    # Convert to HSV for color detection
+    hsv = cv2.cvtColor(tree_region, cv2.COLOR_BGR2HSV)
+    
+    # Orange color range in HSV
+    lower_orange = np.array([5, 100, 100])
+    upper_orange = np.array([25, 255, 255])
+    
+    # Create mask for orange regions
+    orange_mask = cv2.inRange(hsv, lower_orange, upper_orange)
+    
+    # Find contours in the orange mask
+    contours, _ = cv2.findContours(orange_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if not contours:
+        return 'Unknown', None
+    
+    # Find the largest orange region (should be the selected menu item)
+    largest_contour = max(contours, key=cv2.contourArea)
+    x, y, w, h = cv2.boundingRect(largest_contour)
+    
+    # Add padding to capture text, but move inward to avoid thick borders
+    padding_left = 10
+    padding_right = -5
+    padding_vert = 5
+    
+    x_text = max(0, x - padding_left)
+    y_text = max(0, y - padding_vert)
+    w_text = min(tree_region.shape[1] - x_text, w + padding_left + padding_right)
+    h_text = min(tree_region.shape[0] - y_text, h + 2*padding_vert)
+    
+    selected_region = tree_region[y_text:y_text+h_text, x_text:x_text+w_text]
+    
+    if selected_region.shape[0] < 10 or selected_region.shape[1] < 10:
+        return 'Unknown', None
+    
+    # Save bounding box for visualization
+    bbox = (x_text, y_text, w_text, h_text)
+    
+    # Convert to grayscale and normalize
+    gray = cv2.cvtColor(selected_region, cv2.COLOR_BGR2GRAY)
+    gray = cv2.normalize(gray, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+    
+    # Upscale for better character recognition
+    gray = cv2.resize(gray, None, fx=6.0, fy=6.0, interpolation=cv2.INTER_CUBIC)
+    
+    # Threshold and invert
+    _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    gray = cv2.bitwise_not(gray)
+    
+    # OCR with PSM 7 (single line)
+    text = pytesseract.image_to_string(gray, config='--psm 7 --oem 1').strip()
+    
+    # Clean up
+    text = text.replace('[', '').replace(']', '').replace('|', '').strip()
+    
+    return (text if text else 'Unknown'), bbox
+
+
+def detect_card_positions(grid_image: np.ndarray, card_config: Dict[str, Any]) -> List[Tuple[int, int, int, int]]:
+    """
+    Detect actual item card positions using contour detection.
+    Returns list of (x, y, width, height) for detected cards.
+    """
+    card_width = card_config['card_width']
+    card_height = card_config['card_height']
+    
+    # Convert to grayscale and use edge detection
+    gray = cv2.cvtColor(grid_image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 30, 100)
+    
+    # Find contours
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    cards = []
+    
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        
+        # Filter by size - must be close to expected card dimensions
+        width_ok = abs(w - card_width) < card_width * 0.15
+        height_ok = h >= card_height * 0.5 and h <= card_height * 1.15
+        
+        if width_ok and height_ok:
+            if x >= 0 and y >= 0 and x + w <= grid_image.shape[1]:
+                cards.append((x, y, w, h))
+    
+    # Sort by position (top to bottom, left to right)
+    cards.sort(key=lambda c: (c[1], c[0]))
+    
+    # Remove duplicates
+    filtered_cards = []
+    for card in cards:
+        is_duplicate = False
+        for existing in filtered_cards:
+            x_overlap = max(0, min(card[0] + card[2], existing[0] + existing[2]) - max(card[0], existing[0]))
+            y_overlap = max(0, min(card[1] + card[3], existing[1] + existing[3]) - max(card[1], existing[1]))
+            overlap_area = x_overlap * y_overlap
+            card_area = card[2] * card[3]
+            
+            if overlap_area > card_area * 0.5:  # More than 50% overlap
+                is_duplicate = True
+                break
+        
+        if not is_duplicate:
+            filtered_cards.append(card)
+    
+    return filtered_cards
+
+
+def extract_item_from_card(card_image: np.ndarray, card_config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Extract item name and price from a card image using known layout."""
+    h, w = card_image.shape[:2]
+    
+    # Ensure card has minimum size
+    if h < 50 or w < 50:
+        return None
+    
+    # Extract name region (top portion)
+    name_height = card_config['name_region_height']
+    name_region = card_image[0:name_height, :]
+    
+    # Convert to grayscale and normalize
+    name_gray = cv2.cvtColor(name_region, cv2.COLOR_BGR2GRAY) if len(name_region.shape) == 3 else name_region
+    name_gray = cv2.normalize(name_gray, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+    
+    # Upscale and threshold
+    scale_factor = 3.0
+    name_gray = cv2.resize(name_gray, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
+    _, name_gray = cv2.threshold(name_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    name_gray = cv2.bitwise_not(name_gray)
+    
+    # OCR for name
+    tesseract_config = '--psm 7 --oem 1'
+    best_name = pytesseract.image_to_string(name_gray, config=tesseract_config).strip()
+    
+    # Extract price region (bottom portion)
+    price_top = card_config['price_top']
+    price_left_crop = card_config.get('price_left_crop', 0)
+    price_region = card_image[price_top:h, price_left_crop:]
+    
+    # Process price
+    price_gray = cv2.cvtColor(price_region, cv2.COLOR_BGR2GRAY) if len(price_region.shape) == 3 else price_region
+    price_gray = cv2.resize(price_gray, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
+    _, price_gray = cv2.threshold(price_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    price_gray = cv2.bitwise_not(price_gray)
+    
+    # OCR with numeric emphasis
+    price_text = pytesseract.image_to_string(price_gray, config='--psm 7 -c tessedit_char_whitelist=0123456789,$,. ').strip()
+    
+    # Parse price
+    price_match = re.search(r'(\d{1,3}(?:[\,\.]\d{3})*|\d+)', price_text)
+    if not price_match:
+        return None
+    
+    try:
+        price = int(re.sub(r'[\,\.]', '', price_match.group(1)))
+    except ValueError:
+        return None
+    
+    if not best_name or price <= 0:
+        return None
+    
+    # Clean up name
+    best_name = re.sub(r'[^\w\s\-\'\.]', ' ', best_name).strip()
+    best_name = ' '.join(best_name.split())
+    
+    if not best_name:
+        return None
+    
+    return {
+        'itemName': best_name,
+        'price': price
+    }

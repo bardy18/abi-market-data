@@ -25,7 +25,7 @@ echo Starting collector...
 echo.
 
 cd ..
-python collector/continuous_capture.py
+python collector/main.py
 
 echo.
 echo ============================================================

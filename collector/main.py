@@ -16,8 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from collector.utils import load_config
-from collector.vision_utils import detect_card_positions, extract_item_from_card, detect_selected_category
+from collector.utils import load_config, detect_card_positions, extract_item_from_card, detect_selected_category
 from trading_app.utils import load_item_name_mapping, get_display_name
 from difflib import SequenceMatcher
 
