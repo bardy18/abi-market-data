@@ -358,12 +358,12 @@ def continuous_capture():
                                     hsv_b = stem[-6:]
                                     ha, sa, va = int(hsv_a[0:2], 16), int(hsv_a[2:4], 16), int(hsv_a[4:6], 16)
                                     hb, sb, vb = int(hsv_b[0:2], 16), int(hsv_b[2:4], 16), int(hsv_b[4:6], 16)
-                                    # Hue tolerance tighter; saturation must also be reasonably close
-                                    hsv_ok = (abs(ha - hb) <= 15) and (abs(sa - sb) <= 40)
+                                    # Tighter tolerance: color labels must match closely
+                                    hsv_ok = (abs(ha - hb) <= 10) and (abs(sa - sb) <= 30)
                             except Exception:
                                 hsv_ok = True
-                            # Tighten hamming threshold to reduce accidental reuse
-                            if dist <= 4 and hsv_ok:
+                            # Tighten hamming threshold further to reduce accidental reuse
+                            if dist <= 3 and hsv_ok:
                                 chosen_hash = stem
                                 break
                         # Second pass: if not chosen by hash, do visual similarity against near candidates
@@ -387,11 +387,11 @@ def continuous_capture():
                                     hsv_ok = True
                                 if hsv_ok:
                                     candidates.append(fn)
-                            # Compare RMSE with at most first 40 candidates for performance
+                            # Compare visual similarity (multi-metric) with at most first 40 candidates
                             for fn in candidates[:40]:
                                 try:
                                     cand_img = cv2.imread(os.path.join(thumb_dir, fn))
-                                    if are_images_similar(thumb_img, cand_img, rmse_threshold=10.0):
+                                    if are_images_similar(thumb_img, cand_img, gray_rmse_threshold=9.0, hue_rmse_threshold=14.0, sat_mask_threshold=60, masked_gray_rmse_threshold=12.0):
                                         chosen_hash = os.path.splitext(fn)[0]
                                         break
                                 except Exception:

@@ -243,23 +243,57 @@ def hue_bin_distance(a: int, b: int, bins: int = 12) -> int:
         return None
 
 
-def are_images_similar(img_a_bgr: np.ndarray, img_b_bgr: np.ndarray, rmse_threshold: float = 12.0) -> bool:
-    """Return True if two images are visually similar using RMSE on downscaled grayscale.
-    Images are resized to 64x64, converted to grayscale, then RMSE is computed (0..255 scale).
+def are_images_similar(img_a_bgr: np.ndarray, img_b_bgr: np.ndarray,
+                       gray_rmse_threshold: float = 10.0,
+                       hue_rmse_threshold: float = 18.0,
+                       sat_mask_threshold: int = 60,
+                       masked_gray_rmse_threshold: float = 14.0) -> bool:
+    """Return True if two images are visually similar using multiple cues:
+    - Grayscale RMSE over downscaled 64x64
+    - Hue RMSE over downscaled 64x64 HSV (hue scaled to 0..255, circular)
+    - If high-saturation pixels exist (S>=sat_mask_threshold), also compare grayscale RMSE
+      only over that mask (to emphasize colored labels)
     """
     if img_a_bgr is None or img_b_bgr is None:
         return False
     if img_a_bgr.size == 0 or img_b_bgr.size == 0:
         return False
     try:
-        ga = cv2.cvtColor(img_a_bgr, cv2.COLOR_BGR2GRAY) if len(img_a_bgr.shape) == 3 else img_a_bgr
-        gb = cv2.cvtColor(img_b_bgr, cv2.COLOR_BGR2GRAY) if len(img_b_bgr.shape) == 3 else img_b_bgr
-        ga = cv2.resize(ga, (64, 64), interpolation=cv2.INTER_AREA)
-        gb = cv2.resize(gb, (64, 64), interpolation=cv2.INTER_AREA)
-        diff = ga.astype(np.float32) - gb.astype(np.float32)
-        mse = float(np.mean(np.square(diff)))
-        rmse = float(np.sqrt(mse))
-        return rmse <= rmse_threshold
+        # Standardize sizes
+        ta = cv2.resize(img_a_bgr, (64, 64), interpolation=cv2.INTER_AREA)
+        tb = cv2.resize(img_b_bgr, (64, 64), interpolation=cv2.INTER_AREA)
+
+        # Grayscale RMSE
+        ga = cv2.cvtColor(ta, cv2.COLOR_BGR2GRAY) if len(ta.shape) == 3 else ta
+        gb = cv2.cvtColor(tb, cv2.COLOR_BGR2GRAY) if len(tb.shape) == 3 else tb
+        diff_g = ga.astype(np.float32) - gb.astype(np.float32)
+        rmse_g = float(np.sqrt(np.mean(np.square(diff_g))))
+        if rmse_g > gray_rmse_threshold:
+            return False
+
+        # HSV and Hue RMSE (circular distance scaled to 0..255)
+        ha, sa, va = cv2.split(cv2.cvtColor(ta, cv2.COLOR_BGR2HSV))
+        hb, sb, vb = cv2.split(cv2.cvtColor(tb, cv2.COLOR_BGR2HSV))
+        # Map hue 0..180 to 0..255 for distance and compute circular diff per-pixel
+        ha255 = ha.astype(np.float32) * (255.0 / 180.0)
+        hb255 = hb.astype(np.float32) * (255.0 / 180.0)
+        d = np.abs(ha255 - hb255)
+        hue_circ = np.minimum(d, 255.0 - d)
+        rmse_h = float(np.sqrt(np.mean(np.square(hue_circ))))
+        if rmse_h > hue_rmse_threshold:
+            return False
+
+        # High-saturation mask RMSE to emphasize colored labels
+        mask = (sa >= sat_mask_threshold) | (sb >= sat_mask_threshold)
+        if np.any(mask):
+            gma = ga.astype(np.float32)[mask]
+            gmb = gb.astype(np.float32)[mask]
+            if gma.size > 0 and gmb.size > 0:
+                rmse_mask = float(np.sqrt(np.mean(np.square(gma - gmb))))
+                if rmse_mask > masked_gray_rmse_threshold:
+                    return False
+
+        return True
     except Exception:
         return False
 

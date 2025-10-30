@@ -33,10 +33,7 @@ wheels/
 
 # Project specific
 debug_*/
-*.png
 !README_images/*.png
-snapshots/*.json
-!snapshots/.gitkeep
 
 # Logs
 *.log
