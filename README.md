@@ -61,8 +61,8 @@ A computer vision-based market intelligence system for Arena Breakout: Infinite.
    - Scroll slowly through items in each category
    - Watch for visual feedback in the preview window:
      - 🟢 **Green borders** = New items captured
-     - 🔵 **Light blue borders** = Already captured (duplicates)
-     - **Teal borders** = Detected but not fully visible
+     - 🟠 **Orange borders** = Already captured (duplicates)
+     - 🔷 **Cyan thin borders** = Detected card positions (not all may be fully visible)
      - 🟣 **Magenta box** = Category being detected
    - Press `ESC` when you've captured all categories
 
@@ -108,10 +108,10 @@ More frequent captures = better trend analysis!
 - Sights and Magazines have the most items
 
 ### Accuracy
-- Press `C` when items are fully loaded and visible
-- A "PROCESSING..." overlay appears immediately when you press `C`
+- Click the preview window when items are fully loaded and visible
+- A "PROCESSING..." overlay appears immediately when you click
 - Watch for green borders on newly captured items
-- Light blue borders mean you've already captured those items - safe to scroll past
+- Orange borders mean you've already captured those items - safe to scroll past
 - Processing time displayed shows OCR was completed
 
 ### Coverage
@@ -138,9 +138,10 @@ More frequent captures = better trend analysis!
 ```
 ABIMarketData/
 ├── collector/                 # Data collection module
-│   ├── main.py                # Main collector script
-│   ├── utils.py               # Utilities (config, OCR, computer vision)
-│   └── config.yaml            # Collector settings
+│   ├── main.py                  # Main collector script
+│   ├── utils.py                 # Utilities (config, OCR, computer vision)
+│   ├── cleanup_thumbs.py        # Thumbnail de-duplication/cleanup tool
+│   └── config.yaml              # Collector settings
 ├── trading_app/               # GUI application
 │   ├── main.py                # GUI interface
 │   ├── utils.py               # Data processing utilities
@@ -148,11 +149,13 @@ ABIMarketData/
 ├── mappings/                  # Item name mappings
 │   ├── ocr_mappings.json      # OCR name → Display name
 │   └── display_mappings.json  # ItemKey → Friendly name
-├── scripts/                   # Launcher scripts
+├── scripts/                     # Launcher scripts
 │   ├── capture_market_data.bat  # Windows launcher for collector
-│   └── view_market_data.bat     # Windows launcher for GUI
-├── snapshots/                 # Market data snapshots
-│   └── .gitkeep
+│   ├── view_market_data.bat     # Windows launcher for GUI
+│   └── cleanup_thumbs.bat       # Windows launcher for thumbnail cleanup
+├── snapshots/                   # Market data snapshots
+│   ├── YYYY-MM-DD_HH-MM.json    # Snapshot files
+│   └── thumbs/                  # Thumbnail images used by the GUI
 ├── requirements.txt           # Python dependencies
 └── README.md                  # This file
 ```
@@ -178,7 +181,7 @@ Snapshots are saved as JSON in the `snapshots/` directory:
   "timestamp": 1234567890,
   "categories": {
     "Helmet": [
-      {"itemName": "SH12 Military Helmet", "price": 43400},
+      {"itemName": "SH12 Military Helmet", "price": 43400, "thumbHash": "01003c3c3c3c0000"},
       ...
     ],
     "Weapon": [...],
@@ -195,7 +198,7 @@ snapshots/
   ...
 ```
 
-The Trading App loads ALL snapshots automatically for historical analysis.
+The Trading App loads ALL snapshots automatically for historical analysis. When a `thumbHash` is present, the thumbnail image is expected at `snapshots/thumbs/<thumbHash>.png` and is displayed in the GUI when available.
 
 ## Configuration
 
@@ -288,14 +291,32 @@ This is purely cosmetic - backend tracking still uses the itemKey.
 ### Missing Items
 - Scroll slower and pause on each screen
 - Watch for green borders confirming new item capture
-- Light blue borders show already-captured items
-- Teal borders mean the item isn't fully visible yet - pause before scrolling
+- Orange borders show already-captured items
+- Cyan thin borders mean the card was detected but may not be fully visible yet - pause before scrolling
 
 ### Items Captured Multiple Times
 - Light blue borders indicate duplicates - these are handled automatically
 - Only unique items are saved to the snapshot
 
+## Maintenance
 
+### Clean up thumbnails
+
+Over time, the `snapshots/thumbs/` folder can accumulate near-duplicate thumbnails. Use the cleanup tool to de-duplicate and prune similar images.
+
+Run via script (recommended):
+```
+scripts\cleanup_thumbs.bat
+```
+
+Or directly:
+```
+python collector/cleanup_thumbs.py --apply --threshold 8 --snapshots snapshots
+```
+
+Notes:
+- Lower `--threshold` is stricter (fewer images considered duplicates). Default is 8.
+- Without `--apply`, the tool performs a dry run.
 
 ## What's Next?
 
