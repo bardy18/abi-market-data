@@ -198,7 +198,7 @@ snapshots/
   ...
 ```
 
-The Trading App loads ALL snapshots automatically for historical analysis. When a `thumbHash` is present, the thumbnail image is expected at `snapshots/thumbs/<thumbHash>.png` and is displayed in the GUI when available.
+The Trading App loads ALL snapshots automatically for historical analysis. Each item includes a `thumbHash`; the thumbnail image is saved at `snapshots/thumbs/<thumbHash>.png` and is displayed in the GUI.
 
 ## Configuration
 
