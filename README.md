@@ -231,7 +231,7 @@ Notes:
 
 ### How It Works
 
-1. **During Collection**: The collector checks `mappings/ocr_mappings.json` and uses display names as unique identifiers
+1. **During Collection**: The collector checks `mappings/ocr_mappings.json` and uses clean names as unique identifiers
 2. **Category-Aware Deduplication**: Items are uniquely identified by **category + display name** combination
    - "SH40 Tactical..." in Helmet category is separate from "SH40 Tactical..." in Body Armor category
    - Handles truncated names that look identical but are different items
