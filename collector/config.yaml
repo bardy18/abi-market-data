@@ -1,0 +1,75 @@
+# ABI Market Collector Configuration
+window_title: "Arena Breakout Infinite  "
+resolution: [1600, 900]
+tesseract_path: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+
+polling_minutes: 15
+snapshots_path: "snapshots"
+
+# Navigation - click Market button from home screen (scaled from 1280x720)
+market_button: [1023, 904]  # Was [818, 723] at 720p (×1.25)
+
+s3:
+  enable: false
+  bucket: "your-s3-bucket-name"
+  prefix: "snapshots/"
+  region: "us-east-1"
+
+# UI Regions for dynamic discovery (scaled for 1600x900)
+ui_regions:
+  # Tree navigation area (left side)
+  tree_navigation:
+    x: 25        # Was 20 at 720p (×1.25)
+    y: 250       # Was 200 at 720p (×1.25)
+    width: 313   # Was 250 at 720p (×1.25)
+    height: 625  # Was 500 at 720p (×1.25)
+    line_height: 35   # Was 28 at 720p (×1.25)
+    indent_x: 25      # Was 20 at 720p (×1.25)
+  
+  # Item grid area (right side) - exact measurements from user
+  item_grid:
+    x: 320       # First card starts at X=320
+    y: 182       # First card starts at Y=182
+    width: 1280  # Large enough to contain grid
+    height: 600  # Visible grid height
+  
+  # Scrollbar detection area (right edge of grid)
+  scrollbar:
+    x: 1550      # Was 1240 at 720p (×1.25)
+    y: 191       # Was 153 at 720p (×1.25)
+    width: 25    # Was 20 at 720p (×1.25)
+    height: 750  # Was 600 at 720p (×1.25)
+
+# Item card structure - exact measurements from user coordinates
+item_card:
+  # Grid layout
+  columns: 7               # Items per row
+  card_width: 166          # 486 - 320 = 166 pixels
+  card_height: 215         # 397 - 182 = 215 pixels
+  gap_horizontal: 6        # 492 - 486 = 6 pixels
+  gap_vertical: 6          # Estimated (same as horizontal)
+  
+  # Card internal structure (from top of card) - exact measurements
+  name_region_height: 18   # Name ends at 200px, card starts at 182px = 18px
+  thumbnail_top: 18        # Thumbnail starts after name
+  thumbnail_height: 163    # Thumbnail from 18 to 181 = 163px
+  price_top: 181           # Price starts at 363px, card starts at 182px = 181px
+  price_height: 34         # Price from 181 to end (215) = 34px
+  price_left_crop: 60      # Conservative crop to ensure numbers are captured
+
+# Navigation behavior
+navigation:
+  click_delay: 0.5    # Seconds to wait after clicking
+  scroll_amount: 375  # Pixels to scroll each step (was 300 at 720p, ×1.25)
+  max_scrolls: 10     # Maximum scroll attempts per category
+
+preprocess:
+  grayscale: true
+  sharpen: true
+  contrast_alpha: 1.7
+  contrast_beta: 10
+
+ocr:
+  psm: 6  # Assume a uniform block of text
+  oem: 3  # Default LSTM engine
+

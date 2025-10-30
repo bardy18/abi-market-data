@@ -1,0 +1,15 @@
+# ABI Market Trading App Configuration
+snapshots_path: "snapshots"
+max_snapshots_to_load: 100  # Limit number of snapshots loaded by GUI for performance
+
+s3:
+  enable: false
+  bucket: "your-s3-bucket-name"
+  prefix: "snapshots/"
+  region: "us-east-1"
+
+alerts:
+  ma_window: 5
+  spike_threshold_pct: 20.0
+  drop_threshold_pct: 20.0
+

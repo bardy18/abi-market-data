@@ -1,0 +1,3 @@
+# This file keeps the snapshots directory in version control
+# Actual snapshot JSON files are gitignored for privacy and size
+
