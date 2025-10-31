@@ -511,6 +511,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, config_path: str):
         super().__init__()
         self.setWindowTitle('ABI Market Trading App')
+        
+        # Try to load and set window icon
+        self._set_window_icon()
+        
         self.cfg = utils.load_config(config_path)
         self._apply_dark_theme()
 
@@ -634,6 +638,31 @@ class MainWindow(QtWidgets.QMainWindow):
             QLabel#thumb { background-color: #121621; border: 1px solid #2a2f3a; }
         ''')
         # Theme applied; UI widgets not created yet here
+
+    def _set_window_icon(self) -> None:
+        """Try to load and set window icon from common locations."""
+        # Get the directory where this script is located
+        script_dir = Path(__file__).parent
+        # Possible icon locations (check .ico first on Windows, then .png)
+        icon_paths = [
+            script_dir / 'icon.ico',  # trading_app/icon.ico
+            script_dir / 'icon.png',  # trading_app/icon.png
+            script_dir.parent / 'icon.ico',  # abi-market-data/icon.ico
+            script_dir.parent / 'icon.png',  # abi-market-data/icon.png
+            script_dir.parent / 'assets' / 'icon.ico',  # abi-market-data/assets/icon.ico
+            script_dir.parent / 'assets' / 'icon.png',  # abi-market-data/assets/icon.png
+        ]
+        
+        for icon_path in icon_paths:
+            if icon_path.exists():
+                try:
+                    icon = QtGui.QIcon(str(icon_path))
+                    if not icon.isNull():
+                        self.setWindowIcon(icon)
+                        return
+                except Exception:
+                    # If loading fails, try next path
+                    continue
 
     def _filtered_df(self) -> pd.DataFrame:
         df = self.df_all
