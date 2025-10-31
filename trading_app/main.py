@@ -47,6 +47,8 @@ class TrendChart(QtWidgets.QWidget):
         self._scatter = None
         self._cursor = None  # mplcursors cursor object
         self._ax = None
+        self._on_add_callback = None  # Store callback for manual tooltip triggering
+        self._manual_annotation = None  # Store manual annotation for latest point
 
     def plot(self, df: pd.DataFrame, item_key: str, display_name: str = None) -> None:
         """
@@ -60,6 +62,13 @@ class TrendChart(QtWidgets.QWidget):
         self.figure.clear()
         self._data_points = {}
         self._scatter = None
+        # Clear old manual annotation
+        if self._manual_annotation is not None:
+            try:
+                self._manual_annotation.remove()
+            except Exception:
+                pass
+            self._manual_annotation = None
         # Remove old cursor if exists
         if self._cursor is not None:
             try:
@@ -247,14 +256,20 @@ class TrendChart(QtWidgets.QWidget):
                                               edgecolor='#555555', 
                                               linewidth=1.5,
                                               alpha=0.98))
-                            # Update arrow props if they exist
+                            # Remove arrow if it exists (we don't want arrows anymore)
                             try:
-                                ann.arrowprops.update(dict(arrowstyle='->', 
-                                                           connectionstyle='arc3,rad=0',
-                                                           color='#555555', 
-                                                           linewidth=1.5))
-                            except AttributeError:
+                                if hasattr(ann, 'arrowprops') and ann.arrowprops is not None:
+                                    ann.arrowprops = None
+                            except Exception:
                                 pass
+                            
+                            # Ensure tooltip is not clipped by axes
+                            try:
+                                ann.set_annotation_clip(False)
+                            except Exception:
+                                pass
+                            ann.set_clip_on(False)
+                            ann.set_zorder(100)
                             
                             # Show only price in tooltip (no date/time - that's on x-axis now)
                             ann.set_text(f"${price:,.0f}")
@@ -344,6 +359,9 @@ class TrendChart(QtWidgets.QWidget):
                     
                     self._cursor.connect("add", on_add_with_tracking)
                     self._cursor.connect("remove", on_remove_with_tracking)
+                    # Store callbacks for manual tooltip triggering
+                    self._on_add_callback = on_add_with_tracking
+                    self._on_add_simple = on_add  # Store the simple on_add too
                 else:
                     # Fallback: manual hover (may not work reliably)
                     print("Warning: mplcursors not available. Hover tooltips may not work.")
@@ -375,6 +393,146 @@ class TrendChart(QtWidgets.QWidget):
                 ax.grid(True, color='#1a1a1a', alpha=0.6, linestyle='--', linewidth=0.8)
                 # Legend removed for cleaner look
         self.canvas.draw_idle()
+        
+        # Automatically show tooltip for the latest data point after chart is rendered
+        if MPLCURSORS_AVAILABLE and self._cursor is not None and self._data_points:
+            # Process events to ensure canvas is drawn, then show tooltip
+            QtCore.QCoreApplication.processEvents()
+            QtCore.QTimer.singleShot(200, self._show_latest_tooltip)
+    
+    def _show_latest_tooltip(self) -> None:
+        """Show tooltip for the latest data point automatically."""
+        if not MPLCURSORS_AVAILABLE or self._cursor is None or self._scatter is None or not self._data_points:
+            return
+        
+        # Remove old manual annotation if it exists
+        if self._manual_annotation is not None:
+            try:
+                self._manual_annotation.remove()
+            except Exception:
+                pass
+            self._manual_annotation = None
+        
+        try:
+            # Find the latest point (highest index since data is sorted chronologically)
+            latest_idx = max(self._data_points.keys())
+            ts, price, dt_str = self._data_points[latest_idx]
+            
+            # Get the actual data coordinates from the scatter plot
+            # This ensures we use the same coordinate system as the plot
+            scatter_offsets = self._scatter.get_offsets()
+            if latest_idx < len(scatter_offsets):
+                actual_x, actual_y = scatter_offsets[latest_idx]
+                # Use the scatter plot's actual coordinates
+                plot_x, plot_y = actual_x, actual_y
+            else:
+                # Fallback to our stored coordinates
+                plot_x, plot_y = ts, price
+            
+            # Calculate position BEFORE creating annotation to use the right coordinate system
+            xlim = self._ax.get_xlim()
+            ylim = self._ax.get_ylim()
+            
+            # Calculate relative position of point within the chart
+            x_range = xlim[1] - xlim[0]
+            y_range = ylim[1] - ylim[0]
+            x_position = (plot_x - xlim[0]) / x_range if x_range > 0 else 0.5
+            y_position = (plot_y - ylim[0]) / y_range if y_range > 0 else 0.5
+            
+            # For bottom cases, use axes fraction coordinates to position tooltip above the point
+            # This is more reliable than offset points
+            use_axes_fraction = y_position < 0.4  # Use axes fraction for bottom cases
+            
+            # Use the callback to create the annotation
+            if self._on_add_callback is not None or hasattr(self, '_on_add_simple'):
+                # Use the simple on_add callback if available (it doesn't have tracking logic)
+                callback_to_use = getattr(self, '_on_add_simple', None)
+                if callback_to_use is None:
+                    callback_to_use = self._on_add_callback
+                
+                # Create a fake Selection object that matches what mplcursors provides
+                class FakeSelection:
+                    def __init__(self, artist, idx, xdata, ydata, ax, use_axes_frac, x_pos, y_pos):
+                        self.artist = artist
+                        self.index = idx
+                        self.target = artist
+                        self.targetindex = idx
+                        # Create an annotation object for the selection
+                        from matplotlib.text import Annotation
+                        
+                        if use_axes_frac:
+                            # For bottom cases: use axes fraction coordinates to position tooltip well above
+                            # Calculate text position in axes fraction (0-1)
+                            text_ax_x = x_pos
+                            # Position well above the point - scale based on how bottom it is
+                            if y_pos < 0.15:
+                                text_ax_y = y_pos + 0.25  # Very bottom: move up 25% of axes height
+                            elif y_pos < 0.25:
+                                text_ax_y = y_pos + 0.20  # Bottom: move up 20%
+                            else:
+                                text_ax_y = y_pos + 0.15  # Lower: move up 15%
+                            
+                            # Adjust for left/right
+                            if x_pos > 0.85:
+                                text_ax_x = x_pos - 0.15  # Move left
+                            elif x_pos < 0.2:
+                                text_ax_x = x_pos + 0.15  # Move right
+                            else:
+                                text_ax_x = x_pos - 0.12  # Default: move left
+                            
+                            self.annotation = Annotation('',
+                                                      (xdata, ydata),  # Point in data coordinates
+                                                      xytext=(text_ax_x, text_ax_y),  # Text in axes fraction
+                                                      textcoords='axes fraction',  # Use axes fraction
+                                                      xycoords='data',
+                                                      bbox=dict(boxstyle='round,pad=0.8',
+                                                                facecolor='#0a0a0a',
+                                                                edgecolor='#555555',
+                                                                linewidth=1.5,
+                                                                alpha=0.98),
+                                                      annotation_clip=False)
+                        else:
+                            # For top/middle cases: use offset points as before
+                            self.annotation = Annotation('',
+                                                      (xdata, ydata),
+                                                      xytext=(-110, -40),
+                                                      textcoords='offset points',
+                                                      xycoords='data',
+                                                      bbox=dict(boxstyle='round,pad=0.8',
+                                                                facecolor='#0a0a0a',
+                                                                edgecolor='#555555',
+                                                                linewidth=1.5,
+                                                                alpha=0.98),
+                                                      annotation_clip=False)
+                        self.annotation._custom_texts = []
+                        self.annotation.set_clip_on(False)
+                        ax.add_artist(self.annotation)
+                
+                fake_sel = FakeSelection(self._scatter, latest_idx, plot_x, plot_y, self._ax, 
+                                        use_axes_fraction, x_position, y_position)
+                
+                # Call the callback which will style and show the annotation
+                callback_to_use(fake_sel)
+                
+                # Make absolutely sure annotation is visible
+                fake_sel.annotation.set_visible(True)
+                fake_sel.annotation.set_zorder(100)
+                
+                # Ensure clipping is disabled
+                fake_sel.annotation.set_clip_on(False)
+                try:
+                    fake_sel.annotation.set_annotation_clip(False)
+                except AttributeError:
+                    pass
+                
+                # Force redraw with full draw
+                self.canvas.draw()
+                self.canvas.flush_events()
+                QtCore.QCoreApplication.processEvents()  # Process events to ensure display
+                
+        except Exception as e:
+            # Silently fail - manual tooltips still work
+            pass
 
 
 class DataTable(QtWidgets.QTableView):
@@ -852,6 +1010,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                     self.thumb_label.setPixmap(scaled)
                                 else:
                                     # Do not upscale small thumbnails to avoid fuzziness
+                                    # IMPORTANT: This line must be indented inside the else block above
                                     self.thumb_label.setPixmap(pix)
                             else:
                                 self.thumb_label.setPixmap(QtGui.QPixmap())
