@@ -2,12 +2,32 @@
 import sys
 import os
 from pathlib import Path
+from datetime import datetime, timezone
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    # Fallback for Python < 3.9
+    try:
+        from backports.zoneinfo import ZoneInfo
+    except ImportError:
+        # Fallback to pytz if available
+        try:
+            import pytz
+            ZoneInfo = lambda tz: pytz.timezone(tz)
+        except ImportError:
+            ZoneInfo = None
 
 import pandas as pd
 import numpy as np
 from PySide6 import QtWidgets, QtCore, QtGui
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+try:
+    import mplcursors
+    MPLCURSORS_AVAILABLE = True
+except ImportError:
+    MPLCURSORS_AVAILABLE = False
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -17,10 +37,16 @@ from trading_app import utils
 class TrendChart(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.figure = Figure(figsize=(6, 4))
+        self.setMouseTracking(True)  # Enable mouse tracking for hover events
+        self.figure = Figure(figsize=(6, 4), facecolor='#0e1116')
         self.canvas = FigureCanvas(self.figure)
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.canvas)
+        # Store data points for hover lookup
+        self._data_points = {}  # Dict mapping index to (ts, price, dt_str)
+        self._scatter = None
+        self._cursor = None  # mplcursors cursor object
+        self._ax = None
 
     def plot(self, df: pd.DataFrame, item_key: str, display_name: str = None) -> None:
         """
@@ -32,27 +58,322 @@ class TrendChart(QtWidgets.QWidget):
             display_name: Optional display name for chart title
         """
         self.figure.clear()
-        ax = self.figure.add_subplot(111)
+        self._data_points = {}
+        self._scatter = None
+        # Remove old cursor if exists
+        if self._cursor is not None:
+            try:
+                self._cursor.remove()
+            except Exception:
+                pass
+            self._cursor = None
+        ax = self.figure.add_subplot(111, facecolor='#0e1116')
+        self._ax = ax
         if df.empty:
-            ax.set_title('No data')
+            ax.set_title('No data', color='#d0d4dc')
         else:
             # Filter by itemKey to handle items with same name in different categories
             dfi = df[df['itemKey'] == item_key] if 'itemKey' in df.columns else df[df['itemName'] == item_key]
             if dfi.empty:
                 ax.set_title(f'No data for {display_name or item_key}')
             else:
-                ax.plot(dfi['timestamp'], dfi['price'], label='Price', marker='o')
+                # Sort by timestamp for proper plotting
+                dfi = dfi.sort_values('timestamp')
+                # Modern styled lines (no labels since legend is removed)
+                ax.plot(dfi['timestamp'], dfi['price'], color='#4cc9f0', lw=2, zorder=1)
                 if 'ma' in dfi.columns:
-                    ax.plot(dfi['timestamp'], dfi['ma'], label='MA', linestyle='--')
+                    ax.plot(dfi['timestamp'], dfi['ma'], color='#f72585', lw=1.8, linestyle='--', zorder=1)
+                # Add scatter points for hover interaction
+                self._scatter = ax.scatter(dfi['timestamp'], dfi['price'], s=60, color='#4cc9f0', 
+                                           edgecolors='#0e1116', linewidths=1.5, zorder=2, alpha=0.8,
+                                           picker=True, pickradius=5)
+                # Store data points for hover lookup (dict mapping index to (ts, price, dt_str))
+                self._data_points = {}
+                # Get Eastern timezone
+                eastern_tz = None
+                if ZoneInfo:
+                    try:
+                        eastern_tz = ZoneInfo('America/New_York')
+                    except Exception:
+                        pass
+                
+                for idx, (_, row) in enumerate(dfi.iterrows()):
+                    ts_raw = row['timestamp']
+                    price = float(row['price'])
+                    # Convert timestamp to numeric for matplotlib transforms
+                    if isinstance(ts_raw, pd.Timestamp):
+                        dt = ts_raw.to_pydatetime()
+                        ts_num = dt.timestamp()
+                        # Convert to Eastern Time and format with AM/PM
+                        if eastern_tz:
+                            try:
+                                # If timestamp has timezone, convert it; otherwise assume UTC
+                                if ts_raw.tz is not None:
+                                    dt_eastern = ts_raw.tz_convert('America/New_York')
+                                else:
+                                    dt_eastern = ts_raw.tz_localize('UTC').tz_convert('America/New_York')
+                                # Format without leading zero on hour and no seconds
+                                hour = dt_eastern.hour % 12 or 12  # Convert to 12-hour, 0 becomes 12
+                                minute = dt_eastern.minute
+                                am_pm = dt_eastern.strftime('%p')
+                                tz_abbr = dt_eastern.strftime('%Z')
+                                dt_str = f"{dt_eastern.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm} {tz_abbr}"
+                            except Exception:
+                                # Fallback to original format if conversion fails
+                                hour = ts_raw.hour % 12 or 12
+                                minute = ts_raw.minute
+                                am_pm = ts_raw.strftime('%p')
+                                dt_str = f"{ts_raw.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm}"
+                        else:
+                            hour = ts_raw.hour % 12 or 12
+                            minute = ts_raw.minute
+                            am_pm = ts_raw.strftime('%p')
+                            dt_str = f"{ts_raw.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm}"
+                    elif isinstance(ts_raw, (int, float)):
+                        ts_num = float(ts_raw)
+                        dt = datetime.fromtimestamp(ts_num)
+                        # Convert to Eastern Time
+                        if eastern_tz:
+                            try:
+                                # Assume UTC if no timezone info
+                                dt_utc = datetime.fromtimestamp(ts_num, tz=timezone.utc)
+                                dt_eastern = dt_utc.astimezone(eastern_tz)
+                                hour = dt_eastern.hour % 12 or 12
+                                minute = dt_eastern.minute
+                                am_pm = dt_eastern.strftime('%p')
+                                tz_abbr = dt_eastern.strftime('%Z')
+                                dt_str = f"{dt_eastern.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm} {tz_abbr}"
+                            except Exception:
+                                hour = dt.hour % 12 or 12
+                                minute = dt.minute
+                                am_pm = dt.strftime('%p')
+                                dt_str = f"{dt.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm}"
+                        else:
+                            hour = dt.hour % 12 or 12
+                            minute = dt.minute
+                            am_pm = dt.strftime('%p')
+                            dt_str = f"{dt.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm}"
+                    elif isinstance(ts_raw, datetime):
+                        ts_num = ts_raw.timestamp()
+                        if eastern_tz and ts_raw.tzinfo is not None:
+                            try:
+                                dt_eastern = ts_raw.astimezone(eastern_tz)
+                                hour = dt_eastern.hour % 12 or 12
+                                minute = dt_eastern.minute
+                                am_pm = dt_eastern.strftime('%p')
+                                tz_abbr = dt_eastern.strftime('%Z')
+                                dt_str = f"{dt_eastern.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm} {tz_abbr}"
+                            except Exception:
+                                hour = ts_raw.hour % 12 or 12
+                                minute = ts_raw.minute
+                                am_pm = ts_raw.strftime('%p')
+                                dt_str = f"{ts_raw.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm}"
+                        else:
+                            hour = ts_raw.hour % 12 or 12
+                            minute = ts_raw.minute
+                            am_pm = ts_raw.strftime('%p')
+                            dt_str = f"{ts_raw.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm}"
+                    else:
+                        try:
+                            # Try to convert to numeric
+                            ts_num = float(ts_raw)
+                            dt = datetime.fromtimestamp(ts_num)
+                            if eastern_tz:
+                                try:
+                                    dt_utc = datetime.fromtimestamp(ts_num, tz=timezone.utc)
+                                    dt_eastern = dt_utc.astimezone(eastern_tz)
+                                    hour = dt_eastern.hour % 12 or 12
+                                    minute = dt_eastern.minute
+                                    am_pm = dt_eastern.strftime('%p')
+                                    tz_abbr = dt_eastern.strftime('%Z')
+                                    dt_str = f"{dt_eastern.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm} {tz_abbr}"
+                                except Exception:
+                                    hour = dt.hour % 12 or 12
+                                    minute = dt.minute
+                                    am_pm = dt.strftime('%p')
+                                    dt_str = f"{dt.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm}"
+                            else:
+                                hour = dt.hour % 12 or 12
+                                minute = dt.minute
+                                am_pm = dt.strftime('%p')
+                                dt_str = f"{dt.strftime('%Y-%m-%d')} {hour}:{minute:02d} {am_pm}"
+                        except (ValueError, TypeError):
+                            ts_num = 0.0
+                            dt_str = str(ts_raw)
+                    self._data_points[idx] = (ts_num, price, dt_str)
+                
+                # Set up hover tooltips using mplcursors if available
+                if MPLCURSORS_AVAILABLE:
+                    # Disconnect old cursor if exists
+                    if self._cursor is not None:
+                        self._cursor.remove()
+                    
+                    # Create cursor for scatter plot with custom tooltip
+                    # Use click mode - tooltips appear on click and can be toggled
+                    self._cursor = mplcursors.cursor(
+                        self._scatter,
+                        hover=False,  # Use click mode instead
+                        highlight=True,
+                        multiple=False  # Only show one tooltip at a time
+                    )
+                    
+                    # Custom formatter for tooltips - need to capture self in closure
+                    data_points = self._data_points  # Capture for closure
+                    canvas = self.canvas  # Capture for redraw
+                    
+                    def on_add(sel):
+                        idx = sel.index
+                        if idx in data_points:
+                            ts, price, dt_str = data_points[idx]
+                            ann = sel.annotation
+                            
+                            # Store custom text elements on annotation for cleanup
+                            if not hasattr(ann, '_custom_texts'):
+                                ann._custom_texts = []
+                            # Remove old custom texts if they exist
+                            for txt in ann._custom_texts:
+                                try:
+                                    txt.remove()
+                                except:
+                                    pass
+                            ann._custom_texts.clear()
+                            
+                            # Clear default annotation text
+                            ann.set_text('')
+                            
+                            # Style the annotation box first
+                            ann.set_bbox(dict(boxstyle='round,pad=0.8', 
+                                              facecolor='#121621', 
+                                              edgecolor='#4a5568', 
+                                              linewidth=1.5,
+                                              alpha=0.98))
+                            # Update arrow props if they exist
+                            try:
+                                ann.arrowprops.update(dict(arrowstyle='->', 
+                                                           connectionstyle='arc3,rad=0',
+                                                           color='#4a5568', 
+                                                           linewidth=1.5))
+                            except AttributeError:
+                                pass
+                            
+                            # Show only price in tooltip (no date/time - that's on x-axis now)
+                            ann.set_text(f"${price:,.0f}")
+                            
+                            # Style for price prominence - larger, bold
+                            ann.set_fontsize(15)  # Larger font for price
+                            ann.set_weight('bold')  # Bold for emphasis
+                            ann.set_color('#d0d4dc')  # Bright color
+                            
+                            canvas.draw_idle()
+                    
+                    def on_remove(sel):
+                        # Clean up custom text elements if they exist
+                        if hasattr(sel.annotation, '_custom_texts'):
+                            for txt in sel.annotation._custom_texts:
+                                try:
+                                    txt.remove()
+                                except:
+                                    pass
+                            sel.annotation._custom_texts.clear()
+                        # Force redraw when tooltip is removed to ensure it disappears
+                        canvas.draw_idle()
+                    
+                    # Track current selection to allow toggling
+                    current_selection = None
+                    current_selection_idx = None  # Track the index separately
+                    cursor_obj = self._cursor  # Capture cursor for removal
+                    
+                    def on_add_with_tracking(sel):
+                        nonlocal current_selection, current_selection_idx  # Allow modifying the outer variable
+                        
+                        # If clicking the same point that already has a tooltip, toggle it off
+                        if current_selection_idx is not None and current_selection_idx == sel.index:
+                            # Toggle off - hide both the old and new selection
+                            try:
+                                # Hide the old selection if it still exists
+                                if current_selection and current_selection.annotation:
+                                    current_selection.annotation.set_visible(False)
+                                    cursor_obj.remove_selection(current_selection)
+                            except (AttributeError, ValueError, KeyError):
+                                pass
+                            
+                            # Hide the new selection too (since mplcursors already created it)
+                            try:
+                                if sel.annotation:
+                                    sel.annotation.set_visible(False)
+                                cursor_obj.remove_selection(sel)
+                            except (AttributeError, ValueError, KeyError):
+                                try:
+                                    if sel.annotation:
+                                        sel.annotation.set_visible(False)
+                                except AttributeError:
+                                    pass
+                            
+                            current_selection = None
+                            current_selection_idx = None
+                            canvas.draw_idle()
+                            return  # Don't show the tooltip
+                        
+                        # Track the selection and show it
+                        if current_selection:
+                            # Hide previous selection first
+                            try:
+                                prev_ann = current_selection.annotation
+                                if prev_ann:
+                                    prev_ann.set_visible(False)
+                                cursor_obj.remove_selection(current_selection)
+                            except (AttributeError, ValueError, KeyError):
+                                # Fallback: just hide annotation
+                                try:
+                                    if current_selection.annotation:
+                                        current_selection.annotation.set_visible(False)
+                                except AttributeError:
+                                    pass
+                        
+                        current_selection = sel
+                        current_selection_idx = sel.index
+                        on_add(sel)
+                    
+                    def on_remove_with_tracking(sel):
+                        nonlocal current_selection, current_selection_idx  # Allow modifying the outer variable
+                        # Remove from tracking when selection is removed
+                        if current_selection == sel:
+                            current_selection = None
+                            current_selection_idx = None
+                        on_remove(sel)
+                    
+                    self._cursor.connect("add", on_add_with_tracking)
+                    self._cursor.connect("remove", on_remove_with_tracking)
+                else:
+                    # Fallback: manual hover (may not work reliably)
+                    print("Warning: mplcursors not available. Hover tooltips may not work.")
+                    print("Install with: pip install mplcursors")
                 # Extract category and name for title if display_name not provided
                 if not display_name and ':' in item_key:
                     category, name = item_key.split(':', 1)
-                    ax.set_title(name)
+                    title = ax.set_title(name, color='#d0d4dc', fontweight='bold', pad=15)
                 else:
-                    ax.set_title(display_name or item_key)
-                ax.set_xlabel('Time')
-                ax.set_ylabel('Price')
-                ax.legend()
+                    title = ax.set_title(display_name or item_key, color='#d0d4dc', fontweight='bold', pad=15)
+                
+                # Axes styling
+                ax.set_xlabel('Time', color='#9aa4b2')
+                ax.set_ylabel('')  # Remove y-axis title
+                ax.tick_params(colors='#9aa4b2')
+                
+                # Format y-axis to show prices with commas
+                from matplotlib.ticker import FuncFormatter
+                def format_price(x, pos=None):
+                    """Format price labels with commas"""
+                    return f"{x:,.0f}"
+                ax.yaxis.set_major_formatter(FuncFormatter(format_price))
+                
+                # Remove x-axis tick labels - just show "Time" label
+                ax.set_xticklabels([])
+                
+                for spine in ['top', 'right', 'left', 'bottom']:
+                    ax.spines[spine].set_color('#2a2f3a')
+                ax.grid(True, color='#2a2f3a', alpha=0.6, linestyle='--', linewidth=0.8)
+                # Legend removed for cleaner look
         self.canvas.draw_idle()
 
 
@@ -68,6 +389,9 @@ class DataTable(QtWidgets.QTableView):
         # Icons are not used in the move column; rely on text color only
         # Disable in-place editing; changes must go through mapping dialog
         self.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        # Select whole rows only; single selection
+        self.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
         # Ensure header sorting drives model sorting by our numeric role
         try:
             header = self.horizontalHeader()
@@ -78,10 +402,27 @@ class DataTable(QtWidgets.QTableView):
 
     def load(self, df: pd.DataFrame) -> None:
         self.model_.clear()
-        headers = ['move', 'category', 'itemName', 'price', 'ma', 'vol', 'vol%']
+        headers = ['category', 'item', 'move', 'price', 'ma', 'vol', 'vol%']
         self.model_.setHorizontalHeaderLabels(headers)
         for _, row in df.iterrows():
             items = []
+            # Category with case-insensitive sort key
+            cat_text = str(row['category'])
+            cat_item = QtGui.QStandardItem(cat_text)
+            try:
+                cat_item.setData(cat_text.lower(), self.sort_role)
+            except Exception:
+                pass
+            items.append(cat_item)
+            # Show display name in GUI if available, otherwise clean name
+            display_name = row.get('displayName', row.get('itemName', ''))
+            name_item = QtGui.QStandardItem(str(display_name))
+            # Provide a case-insensitive sort key for proper alpha sorting
+            try:
+                name_item.setData(str(display_name).lower(), self.sort_role)
+            except Exception:
+                pass
+            items.append(name_item)
             # Status/move column: icon + delta text
             price_val = float(row['price']) if not pd.isna(row['price']) else float('nan')
             ma_val = row.get('ma', np.nan)
@@ -110,51 +451,58 @@ class DataTable(QtWidgets.QTableView):
                 color = QtGui.QColor(128, 128, 128)
                 move_item.setForeground(QtGui.QBrush(color))
             items.append(move_item)
-            # Category with case-insensitive sort key
-            cat_text = str(row['category'])
-            cat_item = QtGui.QStandardItem(cat_text)
-            try:
-                cat_item.setData(cat_text.lower(), self.sort_role)
-            except Exception:
-                pass
-            items.append(cat_item)
-            # Show display name in GUI if available, otherwise clean name
-            display_name = row.get('displayName', row.get('itemName', ''))
-            name_item = QtGui.QStandardItem(str(display_name))
-            # Provide a case-insensitive sort key for proper alpha sorting
-            try:
-                name_item.setData(str(display_name).lower(), self.sort_role)
-            except Exception:
-                pass
-            items.append(name_item)
-            # Price (money) - display text, but store numeric for sorting
-            price_item = QtGui.QStandardItem(f"{price_val:.0f}")
+            # Price (money) - display text with commas, but store numeric for sorting
+            price_item = QtGui.QStandardItem(f"{price_val:,.0f}")
             price_item.setData(price_val, self.sort_role)
             items.append(price_item)
-            # MA (money) - display text or blank, store numeric (NaN -> -1 for consistent sorting)
+            # MA (money) - display text with commas, rounded to whole numbers, store numeric (NaN -> -1 for consistent sorting)
             ma_is_nan = pd.isna(ma_val)
             ma_num = float(ma_val) if not ma_is_nan else -1.0
-            ma_text = f"{ma_num:.1f}" if not ma_is_nan else ''
+            ma_text = f"{ma_num:,.0f}" if not ma_is_nan else ''
             ma_item = QtGui.QStandardItem(ma_text)
             ma_item.setData(ma_num, self.sort_role)
             items.append(ma_item)
-            # Volatility absolute
+            # Volatility absolute - rounded to whole numbers with commas
             vol_val = row.get('vol', np.nan)
-            vol_item = QtGui.QStandardItem(f"{float(vol_val):.1f}" if not pd.isna(vol_val) else '')
+            vol_item = QtGui.QStandardItem(f"{float(vol_val):,.0f}" if not pd.isna(vol_val) else '')
             vol_item.setData(float(vol_val) if not pd.isna(vol_val) else 0.0, self.sort_role)
             items.append(vol_item)
-            # Volatility percent
+            # Volatility percent - rounded to whole numbers (commas only if >= 1000)
             vol_pct = row.get('volPct', np.nan) if 'volPct' in row else np.nan
-            vol_pct_item = QtGui.QStandardItem(f"{float(vol_pct):.1f}%" if not pd.isna(vol_pct) else '')
+            vol_pct_item = QtGui.QStandardItem(f"{float(vol_pct):,.0f}%" if not pd.isna(vol_pct) else '')
             vol_pct_item.setData(float(vol_pct) if not pd.isna(vol_pct) else 0.0, self.sort_role)
             items.append(vol_pct_item)
-            # Store itemKey in user role for proper item identification when clicking
-            items[0].setData(row.get('itemKey', ''), QtCore.Qt.UserRole)
+            # Store itemKey in user role for proper item identification when clicking (on move column)
+            items[2].setData(row.get('itemKey', ''), QtCore.Qt.UserRole)
             self.model_.appendRow(items)
+        # Set column widths: numeric columns (move, price, ma, vol, vol%) at 85% of content size
+        # Text columns (category, item) share remaining space
+        header = self.horizontalHeader()
+        # Column indices: category=0, item=1, move=2, price=3, ma=4, vol=5, vol%=6
+        numeric_cols = [2, 3, 4, 5, 6]  # move, price, ma, vol, vol%
+        text_cols = [0, 1]  # category, item
+        
+        # First, set all columns to resize to contents to calculate natural widths
+        for col in range(self.model_.columnCount()):
+            header.setSectionResizeMode(col, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        
+        # Calculate the width needed for each numeric column
         self.resizeColumnsToContents()
-        # Default sort: biggest gainers at the top (by numeric sort role)
+        
+        # Store numeric column widths, set to 85% of content size (move column gets even more space)
+        for col in numeric_cols:
+            current_width = header.sectionSize(col)
+            header.setSectionResizeMode(col, QtWidgets.QHeaderView.ResizeMode.Fixed)
+            # Move column gets 90%, others get 85%
+            multiplier = 0.9 if col == 2 else 0.85
+            header.resizeSection(col, max(int(current_width * multiplier), 50))  # Min 50px
+        
+        # Set text columns to stretch to fill remaining space
+        for col in text_cols:
+            header.setSectionResizeMode(col, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        # Default sort: biggest gainers at the top (by numeric sort role on move column)
         try:
-            self.model_.sort(0, QtCore.Qt.SortOrder.DescendingOrder)
+            self.model_.sort(2, QtCore.Qt.SortOrder.DescendingOrder)
         except Exception:
             pass
 
@@ -164,6 +512,7 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle('ABI Market Trading App')
         self.cfg = utils.load_config(config_path)
+        self._apply_dark_theme()
 
         # Data - load limited number of recent snapshots
         limit = self.cfg.max_snapshots_to_load
@@ -213,20 +562,26 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.addWidget(QtWidgets.QLabel('Top Volatility'))
         left_layout.addWidget(self.vol_list)
 
-        # Right: Chart + Table + Thumbnail
+        # Right: Chart + Table + Thumbnail (thumbnail to the right of chart)
         right = QtWidgets.QWidget(self)
         right_layout = QtWidgets.QVBoxLayout(right)
         main_layout.addWidget(right, 3)
 
-        # Thumbnail preview
-        self.thumb_label = QtWidgets.QLabel(self)
-        self.thumb_label.setFixedHeight(110)
-        self.thumb_label.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
-        self.thumb_label.setText('Thumbnail will appear here when you select an item')
-        right_layout.addWidget(self.thumb_label)
-
+        # Chart + Thumbnail row (non-movable, chart takes remaining space)
         self.chart = TrendChart(self)
-        right_layout.addWidget(self.chart, 3)
+        self.thumb_label = QtWidgets.QLabel(self)
+        self.thumb_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.thumb_label.setText('Thumbnail will appear here')
+        self.thumb_label.setFixedWidth(140)
+        self.thumb_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Expanding)
+        self.chart.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
+        chart_row = QtWidgets.QWidget(self)
+        row_layout = QtWidgets.QHBoxLayout(chart_row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(8)
+        row_layout.addWidget(self.chart, stretch=1)
+        row_layout.addWidget(self.thumb_label, stretch=0)
+        right_layout.addWidget(chart_row, 3)
 
         self.table = DataTable(self)
         right_layout.addWidget(self.table, 2)
@@ -248,6 +603,37 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_view()
         self._update_alerts()
         self._update_volatility()
+
+    def _apply_dark_theme(self) -> None:
+        app = QtWidgets.QApplication.instance()
+        if not app:
+            return
+        app.setStyle('Fusion')
+        palette = QtGui.QPalette()
+        # Base colors
+        palette.setColor(QtGui.QPalette.Window, QtGui.QColor('#0e1116'))
+        palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor('#d0d4dc'))
+        palette.setColor(QtGui.QPalette.Base, QtGui.QColor('#0e1116'))
+        palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor('#121621'))
+        palette.setColor(QtGui.QPalette.ToolTipBase, QtGui.QColor('#0e1116'))
+        palette.setColor(QtGui.QPalette.ToolTipText, QtGui.QColor('#d0d4dc'))
+        palette.setColor(QtGui.QPalette.Text, QtGui.QColor('#d0d4dc'))
+        palette.setColor(QtGui.QPalette.Button, QtGui.QColor('#121621'))
+        palette.setColor(QtGui.QPalette.ButtonText, QtGui.QColor('#d0d4dc'))
+        palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor('#1f6feb'))
+        palette.setColor(QtGui.QPalette.HighlightedText, QtGui.QColor('#ffffff'))
+        app.setPalette(palette)
+        # Stylesheet for widgets
+        app.setStyleSheet('''
+            QMainWindow, QWidget { background-color: #0e1116; color: #d0d4dc; }
+            QLineEdit, QComboBox, QListWidget, QTableView { background-color: #121621; color: #d0d4dc; border: 1px solid #2a2f3a; }
+            QHeaderView::section { background-color: #121621; color: #9aa4b2; padding: 4px; border: 1px solid #2a2f3a; }
+            QTableView { gridline-color: #2a2f3a; selection-background-color: #163a72; selection-color: #ffffff; }
+            QListWidget::item { padding: 3px 4px; }
+            QListWidget::item:selected { background-color: #163a72; }
+            QLabel#thumb { background-color: #121621; border: 1px solid #2a2f3a; }
+        ''')
+        # Theme applied; UI widgets not created yet here
 
     def _filtered_df(self) -> pd.DataFrame:
         df = self.df_all
@@ -301,14 +687,14 @@ class MainWindow(QtWidgets.QMainWindow):
         top_key = ''
         if top_index.isValid():
             try:
-                top_key = self.table.model_.item(top_index.row(), 0).data(QtCore.Qt.UserRole)
+                top_key = self.table.model_.item(top_index.row(), 2).data(QtCore.Qt.UserRole)  # itemKey stored in move column (2)
             except Exception:
                 top_key = ''
         sel_index = self.table.currentIndex()
         sel_key = ''
         if sel_index.isValid():
             try:
-                sel_key = self.table.model_.item(sel_index.row(), 0).data(QtCore.Qt.UserRole)
+                sel_key = self.table.model_.item(sel_index.row(), 2).data(QtCore.Qt.UserRole)  # itemKey stored in move column (2)
             except Exception:
                 sel_key = ''
 
@@ -326,7 +712,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 m = self.table.model_
                 for r in range(m.rowCount()):
                     try:
-                        if m.item(r, 0).data(QtCore.Qt.UserRole) == key:
+                        if m.item(r, 2).data(QtCore.Qt.UserRole) == key:  # itemKey stored in move column (2)
                             return r
                     except Exception:
                         continue
@@ -365,10 +751,10 @@ class MainWindow(QtWidgets.QMainWindow):
         model = self.table.model_
         if index.isValid():
             row = index.row()
-            # Get itemKey from stored user data
-            item_key = model.item(row, 0).data(QtCore.Qt.UserRole)
-            category = model.item(row, 1).text()
-            display_name = model.item(row, 2).text()
+            # Get itemKey from stored user data (stored in move column, index 2)
+            item_key = model.item(row, 2).data(QtCore.Qt.UserRole)
+            category = model.item(row, 0).text()  # category column
+            display_name = model.item(row, 1).text()  # item column
             df_full = self._filtered_df()
             if item_key:
                 # Use display name in chart title
@@ -411,7 +797,16 @@ class MainWindow(QtWidgets.QMainWindow):
                                 break
                         if found_path:
                             pix = QtGui.QPixmap(found_path)
-                            self.thumb_label.setPixmap(pix)
+                            if not pix.isNull():
+                                target_w = self.thumb_label.width()
+                                if pix.width() > target_w:
+                                    scaled = pix.scaledToWidth(target_w, QtCore.Qt.TransformationMode.SmoothTransformation)
+                                    self.thumb_label.setPixmap(scaled)
+                                else:
+                                    # Do not upscale small thumbnails to avoid fuzziness
+                                    self.thumb_label.setPixmap(pix)
+                            else:
+                                self.thumb_label.setPixmap(QtGui.QPixmap())
                         else:
                             self.thumb_label.setText('Thumbnail not found')
                 else:
@@ -487,13 +882,13 @@ class MainWindow(QtWidgets.QMainWindow):
         target_row = -1
         for r in range(m.rowCount()):
             try:
-                if m.item(r, 0).data(QtCore.Qt.UserRole) == item_key:
+                if m.item(r, 2).data(QtCore.Qt.UserRole) == item_key:  # itemKey stored in move column (2)
                     target_row = r
                     break
             except Exception:
                 continue
         if target_row >= 0:
-            idx = m.index(target_row, 0)
+            idx = m.index(target_row, 0)  # Use column 0 for selection index
             if idx.isValid():
                 self.table.setCurrentIndex(idx)
                 self.table.scrollTo(idx, QtWidgets.QAbstractItemView.PositionAtCenter)
@@ -563,10 +958,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if not index.isValid():
             return
         row = index.row()
-        item_key = model.item(row, 0).data(QtCore.Qt.UserRole)
+        item_key = model.item(row, 2).data(QtCore.Qt.UserRole)  # itemKey stored in move column (2)
         if not item_key:
             return
-        current_display = model.item(row, 2).text()
+        current_display = model.item(row, 1).text()  # display name in item column (1)
         # Pre-fill with the key's name portion before any #hash
         base_name = current_display
         if ':' in item_key:

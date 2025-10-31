@@ -165,10 +165,9 @@ def add_indicators(df: pd.DataFrame, ma_window: int = 5) -> pd.DataFrame:
     df['ma'] = df.groupby('itemKey')['price'].transform(lambda s: s.rolling(ma_window, min_periods=1).mean())
     df['vol'] = df.groupby('itemKey')['price'].transform(lambda s: s.rolling(ma_window, min_periods=2).std().fillna(0.0))
     # Relative volatility (% of MA). If MA == 0, set to 0 to avoid inf
+    mask = df['ma'] > 0
     df['volPct'] = 0.0
-    with pd.option_context('mode.use_inf_as_na', True):
-        mask = df['ma'] > 0
-        df.loc[mask, 'volPct'] = (df.loc[mask, 'vol'] / df.loc[mask, 'ma']) * 100.0
+    df.loc[mask, 'volPct'] = (df.loc[mask, 'vol'] / df.loc[mask, 'ma']) * 100.0
     return df
 
 
