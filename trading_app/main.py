@@ -272,7 +272,7 @@ class TrendChart(QtWidgets.QWidget):
                             ann.set_zorder(100)
                             
                             # Show only price in tooltip (no date/time - that's on x-axis now)
-                            ann.set_text(f"${price:,.0f}")
+                            ann.set_text(f"{price:,.0f}")
                             
                             # Style for price prominence - larger, bold
                             ann.set_fontsize(15)  # Larger font for price
@@ -560,7 +560,7 @@ class DataTable(QtWidgets.QTableView):
 
     def load(self, df: pd.DataFrame) -> None:
         self.model_.clear()
-        headers = ['item', 'category', 'move', 'price', 'ma', 'vol', 'vol%']
+        headers = ['item', 'category', 'price', 'ma', 'ma%', 'vol', 'vol%']
         self.model_.setHorizontalHeaderLabels(headers)
         for _, row in df.iterrows():
             items = []
@@ -581,9 +581,20 @@ class DataTable(QtWidgets.QTableView):
             except Exception:
                 pass
             items.append(cat_item)
-            # Status/move column: icon + delta text
+            # Price (money) - display text with commas, but store numeric for sorting
             price_val = float(row['price']) if not pd.isna(row['price']) else float('nan')
+            price_item = QtGui.QStandardItem(f"{price_val:,.0f}")
+            price_item.setData(price_val, self.sort_role)
+            items.append(price_item)
+            # MA (money) - display text with commas, rounded to whole numbers, store numeric (NaN -> -1 for consistent sorting)
             ma_val = row.get('ma', np.nan)
+            ma_is_nan = pd.isna(ma_val)
+            ma_num = float(ma_val) if not ma_is_nan else -1.0
+            ma_text = f"{ma_num:,.0f}" if not ma_is_nan else ''
+            ma_item = QtGui.QStandardItem(ma_text)
+            ma_item.setData(ma_num, self.sort_role)
+            items.append(ma_item)
+            # MA% column: percentage change from MA
             delta_pct = float('nan')
             if not pd.isna(ma_val) and ma_val != 0:
                 delta_pct = (price_val - float(ma_val)) / float(ma_val) * 100.0
@@ -594,32 +605,21 @@ class DataTable(QtWidgets.QTableView):
                     direction = 'up'
                 elif delta_pct <= -0.1:
                     direction = 'down'
-            # Create item with icon and text
-            move_item = QtGui.QStandardItem(f"{delta_pct:+.0f}%" if not pd.isna(delta_pct) else '')
-            # Numeric sort key for move column (separate role)
-            move_item.setData(float(delta_pct) if not pd.isna(delta_pct) else 0.0, self.sort_role)
+            # Create item with percentage text
+            ma_pct_item = QtGui.QStandardItem(f"{delta_pct:+.0f}%" if not pd.isna(delta_pct) else '')
+            # Numeric sort key for ma% column (separate role)
+            ma_pct_item.setData(float(delta_pct) if not pd.isna(delta_pct) else 0.0, self.sort_role)
             # Choose color by direction - neon colors
             if direction == 'up':
                 color = QtGui.QColor(0, 255, 136)  # Neon green (#00ff88)
-                move_item.setForeground(QtGui.QBrush(color))
+                ma_pct_item.setForeground(QtGui.QBrush(color))
             elif direction == 'down':
                 color = QtGui.QColor(255, 68, 68)  # Neon red (#ff4444)
-                move_item.setForeground(QtGui.QBrush(color))
+                ma_pct_item.setForeground(QtGui.QBrush(color))
             else:
                 color = QtGui.QColor(136, 136, 136)  # Gray
-                move_item.setForeground(QtGui.QBrush(color))
-            items.append(move_item)
-            # Price (money) - display text with commas, but store numeric for sorting
-            price_item = QtGui.QStandardItem(f"{price_val:,.0f}")
-            price_item.setData(price_val, self.sort_role)
-            items.append(price_item)
-            # MA (money) - display text with commas, rounded to whole numbers, store numeric (NaN -> -1 for consistent sorting)
-            ma_is_nan = pd.isna(ma_val)
-            ma_num = float(ma_val) if not ma_is_nan else -1.0
-            ma_text = f"{ma_num:,.0f}" if not ma_is_nan else ''
-            ma_item = QtGui.QStandardItem(ma_text)
-            ma_item.setData(ma_num, self.sort_role)
-            items.append(ma_item)
+                ma_pct_item.setForeground(QtGui.QBrush(color))
+            items.append(ma_pct_item)
             # Volatility absolute - rounded to whole numbers with commas
             vol_val = row.get('vol', np.nan)
             vol_item = QtGui.QStandardItem(f"{float(vol_val):,.0f}" if not pd.isna(vol_val) else '')
@@ -630,14 +630,14 @@ class DataTable(QtWidgets.QTableView):
             vol_pct_item = QtGui.QStandardItem(f"{float(vol_pct):,.0f}%" if not pd.isna(vol_pct) else '')
             vol_pct_item.setData(float(vol_pct) if not pd.isna(vol_pct) else 0.0, self.sort_role)
             items.append(vol_pct_item)
-            # Store itemKey in user role for proper item identification when clicking (on move column)
-            items[2].setData(row.get('itemKey', ''), QtCore.Qt.UserRole)
+            # Store itemKey in user role for proper item identification when clicking (on ma% column, index 4)
+            items[4].setData(row.get('itemKey', ''), QtCore.Qt.UserRole)
             self.model_.appendRow(items)
-        # Set column widths: numeric columns (move, price, ma, vol, vol%) at 85% of content size
+        # Set column widths: numeric columns (price, ma, ma%, vol, vol%) at 85% of content size
         # Text columns (item, category) share remaining space
         header = self.horizontalHeader()
-        # Column indices: item=0, category=1, move=2, price=3, ma=4, vol=5, vol%=6
-        numeric_cols = [2, 3, 4, 5, 6]  # move, price, ma, vol, vol%
+        # Column indices: item=0, category=1, price=2, ma=3, ma%=4, vol=5, vol%=6
+        numeric_cols = [2, 3, 4, 5, 6]  # price, ma, ma%, vol, vol%
         text_cols = [0, 1]  # item, category
         
         # First, set all columns to resize to contents to calculate natural widths
@@ -647,20 +647,20 @@ class DataTable(QtWidgets.QTableView):
         # Calculate the width needed for each numeric column
         self.resizeColumnsToContents()
         
-        # Store numeric column widths, set to 85% of content size (move column gets even more space)
+        # Store numeric column widths, set to 85% of content size (ma% column gets even more space)
         for col in numeric_cols:
             current_width = header.sectionSize(col)
             header.setSectionResizeMode(col, QtWidgets.QHeaderView.ResizeMode.Fixed)
-            # Move column gets 90%, others get 85%
-            multiplier = 0.9 if col == 2 else 0.85
+            # MA% column gets 90%, others get 85%
+            multiplier = 0.9 if col == 4 else 0.85
             header.resizeSection(col, max(int(current_width * multiplier), 50))  # Min 50px
         
         # Set text columns to stretch to fill remaining space
         for col in text_cols:
             header.setSectionResizeMode(col, QtWidgets.QHeaderView.ResizeMode.Stretch)
-        # Default sort: biggest gainers at the top (by numeric sort role on move column)
+        # Default sort: biggest gainers at the top (by numeric sort role on ma% column)
         try:
-            self.model_.sort(2, QtCore.Qt.SortOrder.DescendingOrder)
+            self.model_.sort(4, QtCore.Qt.SortOrder.DescendingOrder)
         except Exception:
             pass
 
@@ -886,21 +886,21 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
         return latest
 
-    def refresh_view(self) -> None:
+    def refresh_view(self, skip_auto_selection: bool = False) -> None:
         # Preserve the top-visible row's itemKey and current selection
         viewport = self.table.viewport()
         top_index = self.table.indexAt(QtCore.QPoint(0, 0))
         top_key = ''
         if top_index.isValid():
             try:
-                top_key = self.table.model_.item(top_index.row(), 2).data(QtCore.Qt.UserRole)  # itemKey stored in move column (2)
+                top_key = self.table.model_.item(top_index.row(), 4).data(QtCore.Qt.UserRole)  # itemKey stored in ma% column (4)
             except Exception:
                 top_key = ''
         sel_index = self.table.currentIndex()
         sel_key = ''
         if sel_index.isValid():
             try:
-                sel_key = self.table.model_.item(sel_index.row(), 2).data(QtCore.Qt.UserRole)  # itemKey stored in move column (2)
+                sel_key = self.table.model_.item(sel_index.row(), 4).data(QtCore.Qt.UserRole)  # itemKey stored in ma% column (4)
             except Exception:
                 sel_key = ''
 
@@ -918,7 +918,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 m = self.table.model_
                 for r in range(m.rowCount()):
                     try:
-                        if m.item(r, 2).data(QtCore.Qt.UserRole) == key:  # itemKey stored in move column (2)
+                        if m.item(r, 4).data(QtCore.Qt.UserRole) == key:  # itemKey stored in ma% column (4)
                             return r
                     except Exception:
                         continue
@@ -938,27 +938,28 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.table.setCurrentIndex(idx_sel)
         finally:
             self.table.setUpdatesEnabled(True)
-        # Ensure a row is selected and chart/thumbnail shown
-        if not df.empty:
-            current = self.table.currentIndex()
-            if not current.isValid():
-                # Select first row
-                idx0 = self.table.model_.index(0, 0)
-                if idx0.isValid():
-                    self.table.setCurrentIndex(idx0)
-                    self._on_table_clicked(idx0)
+        # Ensure a row is selected and chart/thumbnail shown (unless skipping auto-selection)
+        if not skip_auto_selection:
+            if not df.empty:
+                current = self.table.currentIndex()
+                if not current.isValid():
+                    # Select first row
+                    idx0 = self.table.model_.index(0, 0)
+                    if idx0.isValid():
+                        self.table.setCurrentIndex(idx0)
+                        self._on_table_clicked(idx0)
+                else:
+                    self._on_table_clicked(current)
             else:
-                self._on_table_clicked(current)
-        else:
-            self.chart.plot(pd.DataFrame(), '', '')
+                self.chart.plot(pd.DataFrame(), '', '')
 
     def _on_table_clicked(self, index: QtCore.QModelIndex) -> None:
         # Chart the clicked row's item using itemKey
         model = self.table.model_
         if index.isValid():
             row = index.row()
-            # Get itemKey from stored user data (stored in move column, index 2)
-            item_key = model.item(row, 2).data(QtCore.Qt.UserRole)
+            # Get itemKey from stored user data (stored in ma% column, index 4)
+            item_key = model.item(row, 4).data(QtCore.Qt.UserRole)
             display_name = model.item(row, 0).text()  # item column
             category = model.item(row, 1).text()  # category column
             df_full = self._filtered_df()
@@ -1079,32 +1080,55 @@ class MainWindow(QtWidgets.QMainWindow):
         category = item.data(QtCore.Qt.UserRole + 1)
         if not item_key:
             return
-        # Make sure filters show the item: set category to alert's category and clear name/price filters
-        if category and self.category_cb.currentText() != category:
-            blocker = QtCore.QSignalBlocker(self.category_cb)
-            self.category_cb.setCurrentText(category)
-            del blocker
-        for w in (self.item_edit, self.price_min, self.price_max):
-            blk = QtCore.QSignalBlocker(w)
-            w.setText('')
-            del blk
-        # Refresh view then find and select the row with this itemKey
-        self.refresh_view()
-        m = self.table.model_
+        
+        # Block ALL signals from table and selection model to prevent cascading triggers
+        table_blocker = QtCore.QSignalBlocker(self.table)
+        sel_model = self.table.selectionModel()
+        sel_blocker = QtCore.QSignalBlocker(sel_model) if sel_model else None
+        
         target_row = -1
-        for r in range(m.rowCount()):
-            try:
-                if m.item(r, 2).data(QtCore.Qt.UserRole) == item_key:  # itemKey stored in move column (2)
-                    target_row = r
-                    break
-            except Exception:
-                continue
-        if target_row >= 0:
-            idx = m.index(target_row, 0)  # Use column 0 for selection index
-            if idx.isValid():
-                self.table.setCurrentIndex(idx)
-                self.table.scrollTo(idx, QtWidgets.QAbstractItemView.PositionAtCenter)
-                self._on_table_clicked(idx)
+        target_idx = None
+        
+        try:
+            # Make sure filters show the item: set category to alert's category and clear name/price filters
+            if category and self.category_cb.currentText() != category:
+                cb_blocker = QtCore.QSignalBlocker(self.category_cb)
+                self.category_cb.setCurrentText(category)
+                del cb_blocker
+            for w in (self.item_edit, self.price_min, self.price_max):
+                blk = QtCore.QSignalBlocker(w)
+                w.setText('')
+                del blk
+            
+            # Refresh view but skip auto-selection since we'll select the target row manually
+            self.refresh_view(skip_auto_selection=True)
+            
+            # Now find and select the row with this itemKey (signals still blocked)
+            m = self.table.model_
+            for r in range(m.rowCount()):
+                try:
+                    if m.item(r, 4).data(QtCore.Qt.UserRole) == item_key:  # itemKey stored in ma% column (4)
+                        target_row = r
+                        break
+                except Exception:
+                    continue
+            
+            if target_row >= 0:
+                idx = m.index(target_row, 0)  # Use column 0 for selection index
+                if idx.isValid():
+                    target_idx = idx
+                    # Select the row and scroll to it (signals still blocked)
+                    self.table.setCurrentIndex(idx)
+                    self.table.scrollTo(idx, QtWidgets.QAbstractItemView.PositionAtCenter)
+        finally:
+            # Unblock signals
+            del table_blocker
+            if sel_blocker:
+                del sel_blocker
+        
+        # Now manually update chart and thumbnail ONCE (signals are unblocked now)
+        if target_idx is not None:
+            self._on_table_clicked(target_idx)
 
     def _on_vol_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
         # Reuse the same behavior as alert click for volatility items
@@ -1170,7 +1194,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not index.isValid():
             return
         row = index.row()
-        item_key = model.item(row, 2).data(QtCore.Qt.UserRole)  # itemKey stored in move column (2)
+        item_key = model.item(row, 4).data(QtCore.Qt.UserRole)  # itemKey stored in ma% column (4)
         if not item_key:
             return
         current_display = model.item(row, 0).text()  # display name in item column (0)
