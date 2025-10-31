@@ -187,7 +187,7 @@ def find_alerts(df: pd.DataFrame, spike_pct: float, drop_pct: float) -> List[Dic
             if delta_pct >= spike_pct:
                 alerts.append({
                     'type': 'spike',
-                    'text': f"{disp_name} +{delta_pct:.1f}%",
+                    'text': f"{disp_name} +{delta_pct:.0f}%",
                     'delta': float(delta_pct),
                     'itemKey': row['itemKey'],
                     'category': row['category'],
@@ -195,7 +195,7 @@ def find_alerts(df: pd.DataFrame, spike_pct: float, drop_pct: float) -> List[Dic
             elif delta_pct <= -drop_pct:
                 alerts.append({
                     'type': 'drop',
-                    'text': f"{disp_name} {delta_pct:.1f}%",
+                    'text': f"{disp_name} {delta_pct:.0f}%",
                     'delta': float(delta_pct),
                     'itemKey': row['itemKey'],
                     'category': row['category'],
@@ -224,7 +224,7 @@ def find_top_volatility(df: pd.DataFrame, top_n: int = 10) -> List[Dict[str, Any
         vol_val = float(row.get('vol', 0.0))
         vol_pct = float(row.get('volPct', 0.0)) if 'volPct' in row else 0.0
         out.append({
-            'text': f"{disp_name} {vol_pct:.1f}%",
+            'text': f"{disp_name} {vol_pct:.0f}%",
             'itemKey': row['itemKey'],
             'category': row['category'],
             'vol': vol_val,

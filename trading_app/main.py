@@ -38,7 +38,7 @@ class TrendChart(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)  # Enable mouse tracking for hover events
-        self.figure = Figure(figsize=(6, 4), facecolor='#0e1116')
+        self.figure = Figure(figsize=(6, 4), facecolor='#000000')
         self.canvas = FigureCanvas(self.figure)
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.canvas)
@@ -67,10 +67,10 @@ class TrendChart(QtWidgets.QWidget):
             except Exception:
                 pass
             self._cursor = None
-        ax = self.figure.add_subplot(111, facecolor='#0e1116')
+        ax = self.figure.add_subplot(111, facecolor='#000000')
         self._ax = ax
         if df.empty:
-            ax.set_title('No data', color='#d0d4dc')
+            ax.set_title('No data', color='#c0c0c0')
         else:
             # Filter by itemKey to handle items with same name in different categories
             dfi = df[df['itemKey'] == item_key] if 'itemKey' in df.columns else df[df['itemName'] == item_key]
@@ -80,12 +80,12 @@ class TrendChart(QtWidgets.QWidget):
                 # Sort by timestamp for proper plotting
                 dfi = dfi.sort_values('timestamp')
                 # Modern styled lines (no labels since legend is removed)
-                ax.plot(dfi['timestamp'], dfi['price'], color='#4cc9f0', lw=2, zorder=1)
+                ax.plot(dfi['timestamp'], dfi['price'], color='#00ff88', lw=2, zorder=1)  # Neon green
                 if 'ma' in dfi.columns:
-                    ax.plot(dfi['timestamp'], dfi['ma'], color='#f72585', lw=1.8, linestyle='--', zorder=1)
+                    ax.plot(dfi['timestamp'], dfi['ma'], color='#ff6600', lw=1.8, linestyle='--', zorder=1)  # Orange
                 # Add scatter points for hover interaction
-                self._scatter = ax.scatter(dfi['timestamp'], dfi['price'], s=60, color='#4cc9f0', 
-                                           edgecolors='#0e1116', linewidths=1.5, zorder=2, alpha=0.8,
+                self._scatter = ax.scatter(dfi['timestamp'], dfi['price'], s=60, color='#00ff88', 
+                                           edgecolors='#000000', linewidths=1.5, zorder=2, alpha=0.8,
                                            picker=True, pickradius=5)
                 # Store data points for hover lookup (dict mapping index to (ts, price, dt_str))
                 self._data_points = {}
@@ -243,15 +243,15 @@ class TrendChart(QtWidgets.QWidget):
                             
                             # Style the annotation box first
                             ann.set_bbox(dict(boxstyle='round,pad=0.8', 
-                                              facecolor='#121621', 
-                                              edgecolor='#4a5568', 
+                                              facecolor='#0a0a0a', 
+                                              edgecolor='#555555', 
                                               linewidth=1.5,
                                               alpha=0.98))
                             # Update arrow props if they exist
                             try:
                                 ann.arrowprops.update(dict(arrowstyle='->', 
                                                            connectionstyle='arc3,rad=0',
-                                                           color='#4a5568', 
+                                                           color='#555555', 
                                                            linewidth=1.5))
                             except AttributeError:
                                 pass
@@ -262,7 +262,7 @@ class TrendChart(QtWidgets.QWidget):
                             # Style for price prominence - larger, bold
                             ann.set_fontsize(15)  # Larger font for price
                             ann.set_weight('bold')  # Bold for emphasis
-                            ann.set_color('#d0d4dc')  # Bright color
+                            ann.set_color('#00ff88')  # Neon green for price (consistent with chart)
                             
                             canvas.draw_idle()
                     
@@ -351,14 +351,14 @@ class TrendChart(QtWidgets.QWidget):
                 # Extract category and name for title if display_name not provided
                 if not display_name and ':' in item_key:
                     category, name = item_key.split(':', 1)
-                    title = ax.set_title(name, color='#d0d4dc', fontweight='bold', pad=15)
+                    title = ax.set_title(name, color='#c0c0c0', fontweight='bold', pad=15)
                 else:
-                    title = ax.set_title(display_name or item_key, color='#d0d4dc', fontweight='bold', pad=15)
+                    title = ax.set_title(display_name or item_key, color='#c0c0c0', fontweight='bold', pad=15)
                 
                 # Axes styling
-                ax.set_xlabel('Time', color='#9aa4b2')
+                ax.set_xlabel('Time', color='#888888')
                 ax.set_ylabel('')  # Remove y-axis title
-                ax.tick_params(colors='#9aa4b2')
+                ax.tick_params(colors='#888888')
                 
                 # Format y-axis to show prices with commas
                 from matplotlib.ticker import FuncFormatter
@@ -371,8 +371,8 @@ class TrendChart(QtWidgets.QWidget):
                 ax.set_xticklabels([])
                 
                 for spine in ['top', 'right', 'left', 'bottom']:
-                    ax.spines[spine].set_color('#2a2f3a')
-                ax.grid(True, color='#2a2f3a', alpha=0.6, linestyle='--', linewidth=0.8)
+                    ax.spines[spine].set_color('#333333')
+                ax.grid(True, color='#1a1a1a', alpha=0.6, linestyle='--', linewidth=0.8)
                 # Legend removed for cleaner look
         self.canvas.draw_idle()
 
@@ -402,18 +402,10 @@ class DataTable(QtWidgets.QTableView):
 
     def load(self, df: pd.DataFrame) -> None:
         self.model_.clear()
-        headers = ['category', 'item', 'move', 'price', 'ma', 'vol', 'vol%']
+        headers = ['item', 'category', 'move', 'price', 'ma', 'vol', 'vol%']
         self.model_.setHorizontalHeaderLabels(headers)
         for _, row in df.iterrows():
             items = []
-            # Category with case-insensitive sort key
-            cat_text = str(row['category'])
-            cat_item = QtGui.QStandardItem(cat_text)
-            try:
-                cat_item.setData(cat_text.lower(), self.sort_role)
-            except Exception:
-                pass
-            items.append(cat_item)
             # Show display name in GUI if available, otherwise clean name
             display_name = row.get('displayName', row.get('itemName', ''))
             name_item = QtGui.QStandardItem(str(display_name))
@@ -423,6 +415,14 @@ class DataTable(QtWidgets.QTableView):
             except Exception:
                 pass
             items.append(name_item)
+            # Category with case-insensitive sort key
+            cat_text = str(row['category'])
+            cat_item = QtGui.QStandardItem(cat_text)
+            try:
+                cat_item.setData(cat_text.lower(), self.sort_role)
+            except Exception:
+                pass
+            items.append(cat_item)
             # Status/move column: icon + delta text
             price_val = float(row['price']) if not pd.isna(row['price']) else float('nan')
             ma_val = row.get('ma', np.nan)
@@ -437,18 +437,18 @@ class DataTable(QtWidgets.QTableView):
                 elif delta_pct <= -0.1:
                     direction = 'down'
             # Create item with icon and text
-            move_item = QtGui.QStandardItem(f"{delta_pct:+.1f}%" if not pd.isna(delta_pct) else '')
+            move_item = QtGui.QStandardItem(f"{delta_pct:+.0f}%" if not pd.isna(delta_pct) else '')
             # Numeric sort key for move column (separate role)
             move_item.setData(float(delta_pct) if not pd.isna(delta_pct) else 0.0, self.sort_role)
-            # Choose color by direction
+            # Choose color by direction - neon colors
             if direction == 'up':
-                color = QtGui.QColor(0, 150, 0)
+                color = QtGui.QColor(0, 255, 136)  # Neon green (#00ff88)
                 move_item.setForeground(QtGui.QBrush(color))
             elif direction == 'down':
-                color = QtGui.QColor(180, 0, 0)
+                color = QtGui.QColor(255, 68, 68)  # Neon red (#ff4444)
                 move_item.setForeground(QtGui.QBrush(color))
             else:
-                color = QtGui.QColor(128, 128, 128)
+                color = QtGui.QColor(136, 136, 136)  # Gray
                 move_item.setForeground(QtGui.QBrush(color))
             items.append(move_item)
             # Price (money) - display text with commas, but store numeric for sorting
@@ -476,11 +476,11 @@ class DataTable(QtWidgets.QTableView):
             items[2].setData(row.get('itemKey', ''), QtCore.Qt.UserRole)
             self.model_.appendRow(items)
         # Set column widths: numeric columns (move, price, ma, vol, vol%) at 85% of content size
-        # Text columns (category, item) share remaining space
+        # Text columns (item, category) share remaining space
         header = self.horizontalHeader()
-        # Column indices: category=0, item=1, move=2, price=3, ma=4, vol=5, vol%=6
+        # Column indices: item=0, category=1, move=2, price=3, ma=4, vol=5, vol%=6
         numeric_cols = [2, 3, 4, 5, 6]  # move, price, ma, vol, vol%
-        text_cols = [0, 1]  # category, item
+        text_cols = [0, 1]  # item, category
         
         # First, set all columns to resize to contents to calculate natural widths
         for col in range(self.model_.columnCount()):
@@ -614,28 +614,47 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         app.setStyle('Fusion')
         palette = QtGui.QPalette()
-        # Base colors
-        palette.setColor(QtGui.QPalette.Window, QtGui.QColor('#0e1116'))
-        palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor('#d0d4dc'))
-        palette.setColor(QtGui.QPalette.Base, QtGui.QColor('#0e1116'))
-        palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor('#121621'))
-        palette.setColor(QtGui.QPalette.ToolTipBase, QtGui.QColor('#0e1116'))
-        palette.setColor(QtGui.QPalette.ToolTipText, QtGui.QColor('#d0d4dc'))
-        palette.setColor(QtGui.QPalette.Text, QtGui.QColor('#d0d4dc'))
-        palette.setColor(QtGui.QPalette.Button, QtGui.QColor('#121621'))
-        palette.setColor(QtGui.QPalette.ButtonText, QtGui.QColor('#d0d4dc'))
-        palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor('#1f6feb'))
-        palette.setColor(QtGui.QPalette.HighlightedText, QtGui.QColor('#ffffff'))
+        # Base colors - Deeper blacks like Bloomberg terminal, masculine grays
+        palette.setColor(QtGui.QPalette.Window, QtGui.QColor('#000000'))  # Pure black
+        palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor('#c0c0c0'))  # Bright silver/gray
+        palette.setColor(QtGui.QPalette.Base, QtGui.QColor('#050505'))  # Slightly off-black
+        palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor('#0a0a0a'))  # Very dark gray
+        palette.setColor(QtGui.QPalette.ToolTipBase, QtGui.QColor('#0a0a0a'))
+        palette.setColor(QtGui.QPalette.ToolTipText, QtGui.QColor('#00ff00'))  # Neon green
+        palette.setColor(QtGui.QPalette.Text, QtGui.QColor('#c0c0c0'))
+        palette.setColor(QtGui.QPalette.Button, QtGui.QColor('#1a1a1a'))  # Dark gray button
+        palette.setColor(QtGui.QPalette.ButtonText, QtGui.QColor('#c0c0c0'))
+        palette.setColor(QtGui.QPalette.Highlight, QtGui.QColor('#333333'))  # Neutral gray for selection
+        palette.setColor(QtGui.QPalette.HighlightedText, QtGui.QColor('#c0c0c0'))
         app.setPalette(palette)
-        # Stylesheet for widgets
+        # Stylesheet for widgets - Tough, masculine colors
         app.setStyleSheet('''
-            QMainWindow, QWidget { background-color: #0e1116; color: #d0d4dc; }
-            QLineEdit, QComboBox, QListWidget, QTableView { background-color: #121621; color: #d0d4dc; border: 1px solid #2a2f3a; }
-            QHeaderView::section { background-color: #121621; color: #9aa4b2; padding: 4px; border: 1px solid #2a2f3a; }
-            QTableView { gridline-color: #2a2f3a; selection-background-color: #163a72; selection-color: #ffffff; }
+            QMainWindow, QWidget { background-color: #000000; color: #c0c0c0; }
+            QLineEdit, QComboBox, QListWidget, QTableView { 
+                background-color: #0a0a0a; 
+                color: #c0c0c0; 
+                border: 1px solid #333333; 
+            }
+            QHeaderView::section { 
+                background-color: #0a0a0a; 
+                color: #888888; 
+                padding: 4px; 
+                border: 1px solid #333333; 
+            }
+            QTableView { 
+                gridline-color: #1a1a1a; 
+                selection-background-color: #1a1a1a; 
+                selection-color: #c0c0c0; 
+            }
             QListWidget::item { padding: 3px 4px; }
-            QListWidget::item:selected { background-color: #163a72; }
-            QLabel#thumb { background-color: #121621; border: 1px solid #2a2f3a; }
+            QListWidget::item:selected { 
+                background-color: #1a1a1a; 
+                color: #c0c0c0; 
+            }
+            QLabel#thumb { 
+                background-color: #0a0a0a; 
+                border: 1px solid #333333; 
+            }
         ''')
         # Theme applied; UI widgets not created yet here
 
@@ -782,8 +801,8 @@ class MainWindow(QtWidgets.QMainWindow):
             row = index.row()
             # Get itemKey from stored user data (stored in move column, index 2)
             item_key = model.item(row, 2).data(QtCore.Qt.UserRole)
-            category = model.item(row, 0).text()  # category column
-            display_name = model.item(row, 1).text()  # item column
+            display_name = model.item(row, 0).text()  # item column
+            category = model.item(row, 1).text()  # category column
             df_full = self._filtered_df()
             if item_key:
                 # Use display name in chart title
@@ -864,30 +883,35 @@ class MainWindow(QtWidgets.QMainWindow):
             # Store itemKey and category for click handling
             item.setData(QtCore.Qt.UserRole, a.get('itemKey', ''))
             item.setData(QtCore.Qt.UserRole + 1, a.get('category', ''))
-            # Add colored icon only; leave text default color
+            # Add colored icon and text color
             t = a.get('type')
             if t in ('spike', 'drop'):
-                color = QtGui.QColor(0, 150, 0) if t == 'spike' else QtGui.QColor(180, 0, 0)
+                color = QtGui.QColor(0, 255, 136) if t == 'spike' else QtGui.QColor(255, 68, 68)  # Neon green/red
                 direction = 'up' if t == 'spike' else 'down'
                 icon = self._make_alert_icon(color, direction)
                 if icon is not None:
                     item.setIcon(icon)
+                # Color the text to match the icon
+                item.setForeground(QtGui.QBrush(color))
             self.alerts_list.addItem(item)
 
     def _update_volatility(self) -> None:
         self.vol_list.clear()
         tops = utils.find_top_volatility(self.df_all, top_n=10)
+        orange_color = QtGui.QColor(255, 140, 0)  # Orange
         for v in tops:
             item = QtWidgets.QListWidgetItem(v.get('text', ''))
             item.setData(QtCore.Qt.UserRole, v.get('itemKey', ''))
             item.setData(QtCore.Qt.UserRole + 1, v.get('category', ''))
             # Add an exclamation icon to indicate volatility
             try:
-                icon = self._make_vol_icon(QtGui.QColor(255, 140, 0))  # orange
+                icon = self._make_vol_icon(orange_color)
                 if icon is not None:
                     item.setIcon(icon)
             except Exception:
                 pass
+            # Color the text orange to match the icon
+            item.setForeground(QtGui.QBrush(orange_color))
             self.vol_list.addItem(item)
 
     def _on_alert_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
@@ -990,7 +1014,7 @@ class MainWindow(QtWidgets.QMainWindow):
         item_key = model.item(row, 2).data(QtCore.Qt.UserRole)  # itemKey stored in move column (2)
         if not item_key:
             return
-        current_display = model.item(row, 1).text()  # display name in item column (1)
+        current_display = model.item(row, 0).text()  # display name in item column (0)
         # Pre-fill with the key's name portion before any #hash
         base_name = current_display
         if ':' in item_key:
