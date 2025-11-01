@@ -739,10 +739,10 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.addWidget(QtWidgets.QLabel('Top Movers'))
         left_layout.addWidget(self.alerts_list)
 
-        # Top Volatility
-        self.vol_list = QtWidgets.QListWidget(self)
-        left_layout.addWidget(QtWidgets.QLabel('Top Volatility'))
-        left_layout.addWidget(self.vol_list)
+        # My Watchlist
+        self.watchlist_list = QtWidgets.QListWidget(self)
+        left_layout.addWidget(QtWidgets.QLabel('My Watchlist'))
+        left_layout.addWidget(self.watchlist_list)
 
         # Right: Chart + Table + Thumbnail (thumbnail to the right of chart)
         right = QtWidgets.QWidget(self)
@@ -751,18 +751,54 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Chart + Thumbnail row (non-movable, chart takes remaining space)
         self.chart = TrendChart(self)
+        
+        # Thumbnail area with star button above it
+        thumb_area = QtWidgets.QWidget(self)
+        thumb_layout = QtWidgets.QVBoxLayout(thumb_area)
+        thumb_layout.setContentsMargins(0, 0, 0, 0)
+        thumb_layout.setSpacing(4)
+        
+        # Star button for watchlist
+        self.watchlist_btn = QtWidgets.QPushButton(self)
+        self.watchlist_btn.setText('☆')
+        self.watchlist_btn.setFixedSize(30, 30)
+        self.watchlist_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #1a1a1a;
+                border: 1px solid #333333;
+                border-radius: 4px;
+                font-size: 16px;
+                color: #888888;
+            }
+            QPushButton:hover {
+                background-color: #2a2a2a;
+                border-color: #555555;
+                color: #c0c0c0;
+            }
+            QPushButton:pressed {
+                background-color: #0a0a0a;
+            }
+        ''')
+        
         self.thumb_label = QtWidgets.QLabel(self)
         self.thumb_label.setAlignment(QtCore.Qt.AlignCenter)
         self.thumb_label.setText('Thumbnail will appear here')
         self.thumb_label.setFixedWidth(140)
         self.thumb_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Expanding)
+        
+        # Add spacer to position button closer to thumbnail
+        thumb_layout.addStretch(5)
+        thumb_layout.addWidget(self.watchlist_btn, alignment=QtCore.Qt.AlignCenter)
+        thumb_layout.addWidget(self.thumb_label, stretch=10)
+        # No bottom spacer to push button lower
+        
         self.chart.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         chart_row = QtWidgets.QWidget(self)
         row_layout = QtWidgets.QHBoxLayout(chart_row)
         row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.setSpacing(8)
         row_layout.addWidget(self.chart, stretch=1)
-        row_layout.addWidget(self.thumb_label, stretch=0)
+        row_layout.addWidget(thumb_area, stretch=0)
         right_layout.addWidget(chart_row, 3)
 
         self.table = DataTable(self)
@@ -779,12 +815,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # Note: selectionModel is available after model is set in DataTable
         self.table.selectionModel().currentChanged.connect(self._on_table_current_changed)
         self.alerts_list.itemClicked.connect(self._on_alert_clicked)
-        self.vol_list.itemClicked.connect(self._on_vol_clicked)
+        self.watchlist_list.itemClicked.connect(self._on_watchlist_clicked)
+        self.watchlist_btn.clicked.connect(self._on_watchlist_btn_clicked)
+
+        # Track current selected itemKey for watchlist button state
+        self._current_item_key = None
 
         # Initial load
         self.refresh_view()
         self._update_alerts()
-        self._update_volatility()
+        self._update_watchlist()
 
     def _apply_dark_theme(self) -> None:
         app = QtWidgets.QApplication.instance()
@@ -990,6 +1030,11 @@ class MainWindow(QtWidgets.QMainWindow):
             item_key = model.item(row, 4).data(QtCore.Qt.UserRole)
             display_name = model.item(row, 0).text()  # item column
             category = model.item(row, 1).text()  # category column
+            
+            # Store current item key for watchlist button state
+            self._current_item_key = item_key
+            self._update_watchlist_button_state()
+            
             df_full = self._filtered_df()
             if item_key:
                 # Use display name in chart title
@@ -1083,24 +1128,102 @@ class MainWindow(QtWidgets.QMainWindow):
                 item.setForeground(QtGui.QBrush(color))
             self.alerts_list.addItem(item)
 
-    def _update_volatility(self) -> None:
-        self.vol_list.clear()
-        tops = utils.find_top_volatility(self.df_all, top_n=10)
-        orange_color = QtGui.QColor(255, 140, 0)  # Orange
-        for v in tops:
-            item = QtWidgets.QListWidgetItem(v.get('text', ''))
-            item.setData(QtCore.Qt.UserRole, v.get('itemKey', ''))
-            item.setData(QtCore.Qt.UserRole + 1, v.get('category', ''))
-            # Add an exclamation icon to indicate volatility
-            try:
-                icon = self._make_vol_icon(orange_color)
+    def _update_watchlist(self) -> None:
+        self.watchlist_list.clear()
+        watchlist_items = utils.find_watchlist_items(self.df_all)
+        for w in watchlist_items:
+            item = QtWidgets.QListWidgetItem(w.get('text', ''))
+            # Store itemKey and category for click handling
+            item.setData(QtCore.Qt.UserRole, w.get('itemKey', ''))
+            item.setData(QtCore.Qt.UserRole + 1, w.get('category', ''))
+            # Add colored icon and text color like Top Movers
+            t = w.get('type')
+            if t in ('spike', 'drop'):
+                color = QtGui.QColor(0, 255, 136) if t == 'spike' else QtGui.QColor(255, 68, 68)  # Neon green/red
+                direction = 'up' if t == 'spike' else 'down'
+                icon = self._make_alert_icon(color, direction)
                 if icon is not None:
                     item.setIcon(icon)
-            except Exception:
-                pass
-            # Color the text orange to match the icon
-            item.setForeground(QtGui.QBrush(orange_color))
-            self.vol_list.addItem(item)
+                # Color the text to match the icon
+                item.setForeground(QtGui.QBrush(color))
+            self.watchlist_list.addItem(item)
+    
+    def _update_watchlist_button_state(self) -> None:
+        """Update the watchlist button to show star or filled star based on current item."""
+        if not self._current_item_key:
+            self.watchlist_btn.setText('☆')
+            self.watchlist_btn.setEnabled(False)
+            # Reset to default gray styling
+            self.watchlist_btn.setStyleSheet('''
+                QPushButton {
+                    background-color: #1a1a1a;
+                    border: 1px solid #333333;
+                    border-radius: 4px;
+                    font-size: 16px;
+                    color: #888888;
+                }
+                QPushButton:hover {
+                    background-color: #2a2a2a;
+                    border-color: #555555;
+                    color: #c0c0c0;
+                }
+                QPushButton:pressed {
+                    background-color: #0a0a0a;
+                }
+            ''')
+        else:
+            self.watchlist_btn.setEnabled(True)
+            if utils.is_in_watchlist(self._current_item_key):
+                self.watchlist_btn.setText('★')
+                # Neon green for activated state
+                self.watchlist_btn.setStyleSheet('''
+                    QPushButton {
+                        background-color: #1a1a1a;
+                        border: 1px solid #333333;
+                        border-radius: 4px;
+                        font-size: 16px;
+                        color: #00ff88;
+                    }
+                    QPushButton:hover {
+                        background-color: #2a2a2a;
+                        border-color: #555555;
+                        color: #00ff88;
+                    }
+                    QPushButton:pressed {
+                        background-color: #0a0a0a;
+                    }
+                ''')
+            else:
+                self.watchlist_btn.setText('☆')
+                # Reset to default gray styling
+                self.watchlist_btn.setStyleSheet('''
+                    QPushButton {
+                        background-color: #1a1a1a;
+                        border: 1px solid #333333;
+                        border-radius: 4px;
+                        font-size: 16px;
+                        color: #888888;
+                    }
+                    QPushButton:hover {
+                        background-color: #2a2a2a;
+                        border-color: #555555;
+                        color: #c0c0c0;
+                    }
+                    QPushButton:pressed {
+                        background-color: #0a0a0a;
+                    }
+                ''')
+    
+    def _on_watchlist_btn_clicked(self) -> None:
+        """Toggle current item in watchlist."""
+        if not self._current_item_key:
+            return
+        if utils.is_in_watchlist(self._current_item_key):
+            utils.remove_from_watchlist(self._current_item_key)
+        else:
+            utils.add_to_watchlist(self._current_item_key)
+        self._update_watchlist_button_state()
+        self._update_watchlist()
 
     def _on_alert_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
         # Select the corresponding row in the table and update chart/thumbnail
@@ -1158,8 +1281,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if target_idx is not None:
             self._on_table_clicked(target_idx)
 
-    def _on_vol_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
-        # Reuse the same behavior as alert click for volatility items
+    def _on_watchlist_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
+        # Reuse the same behavior as alert click for watchlist items
         self._on_alert_clicked(item)
 
     def _make_alert_icon(self, color: QtGui.QColor, direction: str = 'up') -> QtGui.QIcon:
@@ -1190,29 +1313,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     QtCore.QPointF(size-2.0, size-2.0),
                 ]
             painter.drawPolygon(QtGui.QPolygonF(points))
-        finally:
-            painter.end()
-        return QtGui.QIcon(pm)
-
-    def _make_vol_icon(self, color: QtGui.QColor) -> QtGui.QIcon:
-        # Draw a small exclamation mark icon
-        size = 12
-        pm = QtGui.QPixmap(size, size)
-        pm.fill(QtCore.Qt.GlobalColor.transparent)
-        painter = QtGui.QPainter(pm)
-        try:
-            painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
-            pen = QtGui.QPen(color)
-            pen.setWidth(2)
-            pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
-            painter.setPen(pen)
-            painter.setBrush(color)
-            # Draw vertical line
-            x = size / 2.0
-            # Shorten line so it doesn't touch the dot
-            painter.drawLine(int(x), 2, int(x), size - 6)
-            # Draw dot
-            painter.drawEllipse(QtCore.QPointF(x, size - 2), 1.2, 1.2)
         finally:
             painter.end()
         return QtGui.QIcon(pm)
