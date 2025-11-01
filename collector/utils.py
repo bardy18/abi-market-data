@@ -404,28 +404,38 @@ def parse_price_from_text(text: str) -> Optional[int]:
     # Focus on the last line (prices are typically at the bottom)
     last_line = lines[-1]
     
-    # First, try to find the longest number in the line (handles malformed separators)
-    # Look for patterns like "4590,000" where OCR missed a comma
-    # Use a more lenient pattern that captures all digits and separators
+    # First, try lenient pattern to catch malformed numbers like "4590,000"
+    # This handles cases where OCR missed a comma
     lenient_pattern = re.compile(r'([0-9OoIiLlSsB,\.\s]+)')
     lenient_matches = lenient_pattern.findall(last_line)
     if lenient_matches:
         # Find the longest numeric match (likely the price)
         best_lenient_match = max(lenient_matches, key=lambda m: len(re.sub(r'[^\d]', '', m)))
         if best_lenient_match:
-            # Check if it looks like a price (has digits and maybe separators)
-            digits_only = re.sub(r'[^\d]', '', best_lenient_match)
-            if len(digits_only) >= 3:  # Prices are usually at least 3 digits
-                # Use this as the token
-                token_str = best_lenient_match.strip()
-                norm = _normalize_ocr_digits(token_str)
-                if norm and len(norm) >= 3:
-                    try:
-                        price = int(norm)
-                        if price > 0:
-                            return price
-                    except ValueError:
-                        pass
+            digits_only = re.sub(r'[^\dOoIiLlSsB]', '', best_lenient_match)
+            norm = _normalize_ocr_digits(digits_only)
+            if norm and len(norm) >= 3:
+                # Check for cash icon split before using it
+                if ',' in best_lenient_match:
+                    parts = best_lenient_match.split(',')
+                    if len(parts) == 2:
+                        left_norm = _normalize_ocr_digits(parts[0].strip())
+                        right_norm = _normalize_ocr_digits(parts[1].strip())
+                        # Only split when right is clearly longer (4+ digits)
+                        # This handles "96,5040" but not "96,504" or "99,810"
+                        if len(left_norm) <= 2 and len(right_norm) >= 4:
+                            try:
+                                return int(right_norm)
+                            except ValueError:
+                                pass
+                
+                # Use the full number
+                try:
+                    price = int(norm)
+                    if price > 0:
+                        return price
+                except ValueError:
+                    pass
     
     # Fallback to original regex-based matching
     # Find all price matches on the last line
