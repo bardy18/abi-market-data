@@ -505,9 +505,9 @@ def continuous_capture():
                         new_items_this_capture += 1
                         # Show both names if different
                         if ocr_name != clean_name:
-                            print(f"  [{current_category}] {clean_name} (OCR: {ocr_name}) - ${item_data['price']:,}")
+                            print(f"  ${item_data['price']:>8,}  [{current_category}] {clean_name} (OCR: {ocr_name})")
                         else:
-                            print(f"  [{current_category}] {clean_name} - ${item_data['price']:,}")
+                            print(f"  ${item_data['price']:>8,}  [{current_category}] {clean_name}")
             
             # Calculate processing time
             processing_time = time.time() - capture_start_time
@@ -640,8 +640,8 @@ def continuous_capture():
             print("These items have the same price and similar names in the same category.")
             print("Consider adding mappings to: mappings/ocr_mappings.json\n")
             for disp1, disp2, ocr1, ocr2, price, category in potential_duplicates:
-                print(f"  [{category}] ${price:,} - '{ocr1}' vs '{ocr2}'")
-                print(f"           (Display: '{disp1}' vs '{disp2}')")
+                print(f"  ${price:>8,}  [{category}] '{ocr1}' vs '{ocr2}'")
+                print(f"             (Display: '{disp1}' vs '{disp2}')")
             print("="*60)
     else:
         print("\n[!] No items captured")
