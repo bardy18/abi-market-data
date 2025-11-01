@@ -43,7 +43,7 @@ item_card:
   thumbnail_height: 163    # Height of thumbnail
   price_top: 181           # Price region starts here
   price_height: 34         # Height of price region
-  price_left_crop: 60      # Crop from left to ensure numbers are captured
+  price_left_crop: 0       # No crop - parser handles cash icon cases
 
 # Navigation behavior
 navigation:

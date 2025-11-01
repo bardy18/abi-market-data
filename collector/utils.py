@@ -388,6 +388,213 @@ def parse_ocr_lines(lines: List[str]) -> List[Dict[str, Any]]:
     return items
 
 
+def parse_price_from_text(text: str) -> Optional[int]:
+    """
+    Parse price from OCR text. Simple and reliable approach.
+    Prefers the rightmost/longest number, with special handling for "XX,YYY" patterns.
+    """
+    if not text or not text.strip():
+        return None
+    
+    # Split by lines - prices are usually on the last line
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    if not lines:
+        return None
+    
+    # Focus on the last line (prices are typically at the bottom)
+    last_line = lines[-1]
+    
+    # First, try to find the longest number in the line (handles malformed separators)
+    # Look for patterns like "4590,000" where OCR missed a comma
+    # Use a more lenient pattern that captures all digits and separators
+    lenient_pattern = re.compile(r'([0-9OoIiLlSsB,\.\s]+)')
+    lenient_matches = lenient_pattern.findall(last_line)
+    if lenient_matches:
+        # Find the longest numeric match (likely the price)
+        best_lenient_match = max(lenient_matches, key=lambda m: len(re.sub(r'[^\d]', '', m)))
+        if best_lenient_match:
+            # Check if it looks like a price (has digits and maybe separators)
+            digits_only = re.sub(r'[^\d]', '', best_lenient_match)
+            if len(digits_only) >= 3:  # Prices are usually at least 3 digits
+                # Use this as the token
+                token_str = best_lenient_match.strip()
+                norm = _normalize_ocr_digits(token_str)
+                if norm and len(norm) >= 3:
+                    try:
+                        price = int(norm)
+                        if price > 0:
+                            return price
+                    except ValueError:
+                        pass
+    
+    # Fallback to original regex-based matching
+    # Find all price matches on the last line
+    matches = list(_PRICE_RE.finditer(last_line))
+    if not matches:
+        # Fallback: try all lines
+        all_matches = []
+        for line in lines:
+            matches = list(_PRICE_RE.finditer(line))
+            all_matches.extend(matches)
+        if not all_matches:
+            return None
+        matches = all_matches
+    
+    # If only one match, check for "XX,YYY" pattern before using it
+    if len(matches) == 1:
+        match = matches[0]
+        token = match.group(2) if match.lastindex >= 2 else match.group(0)
+        
+        # Special case: "XX,YYY" or "XX YYY" where XX is 1-2 digits and YYY is 3+ digits
+        # This likely means the cash icon was read as "XX" and the price is "YYY"
+        # BUT: if left is 3+ digits, it's probably a thousand separator, not a split
+        if ',' in token:
+            parts = token.split(',')
+            if len(parts) == 2:
+                left_norm = _normalize_ocr_digits(parts[0].strip())
+                right_norm = _normalize_ocr_digits(parts[1].strip())
+                # Split logic: if left is 1-2 digits and right is 3+ digits, likely cash icon + price
+                # Exception: if left is 2 digits and right is exactly 3 digits ending in "00", "50", or "000",
+                # it might be thousand-separated (like "12,300" → 12300), so don't split
+                split_ok = False
+                if len(left_norm) == 1 and len(right_norm) >= 3:
+                    split_ok = True
+                elif len(left_norm) == 2:
+                    if len(right_norm) >= 4:
+                        split_ok = True
+                    elif len(right_norm) == 3:
+                        # If right ends in 00 or 50, it might be thousand-separated
+                        if right_norm.endswith('00') or right_norm.endswith('50'):
+                            split_ok = False  # Might be "12,300" or "12,350"
+                        else:
+                            split_ok = True   # Likely "96,504" → split to "504"
+                
+                if split_ok:
+                    try:
+                        return int(right_norm)
+                    except ValueError:
+                        pass
+        elif ' ' in token:
+            # For space-separated, only split if it looks like cash icon + price
+            # (space is less likely to be a thousand separator)
+            parts = token.split()
+            if len(parts) == 2:
+                left_norm = _normalize_ocr_digits(parts[0].strip())
+                right_norm = _normalize_ocr_digits(parts[1].strip())
+                if left_norm and right_norm and len(left_norm) <= 2 and len(right_norm) >= 3:
+                    try:
+                        return int(right_norm)
+                    except ValueError:
+                        pass
+        
+        # Normal parse
+        norm = _normalize_ocr_digits(token)
+        if norm:
+            try:
+                return int(norm) if int(norm) > 0 else None
+            except ValueError:
+                return None
+        return None
+    
+    # Multiple matches: prefer the rightmost, longest match
+    best_match = None
+    best_pos = -1
+    best_length = 0
+    
+    for match in matches:
+        token = match.group(2) if match.lastindex >= 2 else match.group(0)
+        norm = _normalize_ocr_digits(token)
+        if not norm:
+            continue
+        
+        # Special handling for "XX,YYY" pattern in multi-match case
+        # Only split if left is 1-2 digits (cash icon), not if it's 3+ (thousand separator)
+        if ',' in token:
+            parts = token.split(',')
+            if len(parts) == 2:
+                left_norm = _normalize_ocr_digits(parts[0].strip())
+                right_norm = _normalize_ocr_digits(parts[1].strip())
+                # Split logic: same as single-match case
+                split_ok = False
+                if len(left_norm) == 1 and len(right_norm) >= 3:
+                    split_ok = True
+                elif len(left_norm) == 2:
+                    if len(right_norm) >= 4:
+                        split_ok = True
+                    elif len(right_norm) == 3:
+                        # If right ends in 00 or 50, it might be thousand-separated
+                        if right_norm.endswith('00') or right_norm.endswith('50'):
+                            split_ok = False
+                        else:
+                            split_ok = True
+                
+                if split_ok:
+                    # This is a split case - prefer the right part
+                    try:
+                        candidate_price = int(right_norm)
+                        # Score based on position (prefer rightmost)
+                        pos_score = match.end()
+                        if pos_score > best_pos or (pos_score == best_pos and len(right_norm) > best_length):
+                            best_match = ('split', candidate_price, match, token)
+                            best_pos = pos_score
+                            best_length = len(right_norm)
+                    except ValueError:
+                        pass
+                    continue
+        
+        # Regular number - score by position (rightmost) and length (longer)
+        pos_score = match.end()
+        length_score = len(norm)
+        
+        # Prefer rightmost, then longer
+        if pos_score > best_pos or (pos_score == best_pos and length_score > best_length):
+            best_match = ('normal', None, match, token)
+            best_pos = pos_score
+            best_length = length_score
+    
+    if not best_match:
+        return None
+    
+    match_type, precomputed_price, match, token = best_match
+    
+    # If we already computed the price (from split), use it
+    if match_type == 'split' and precomputed_price is not None:
+        return precomputed_price
+    
+    # Otherwise, parse from token
+    token_str = token if isinstance(token, str) else str(token)
+    
+    # Handle cases where OCR misses thousand separators (e.g., "4590,000" should be 4,590,000)
+    # If the token has a comma but the part before the comma is 4+ digits, it's malformed
+    # Normalize it properly by treating it as one complete number
+    if ',' in token_str:
+        parts = token_str.split(',')
+        first_part = parts[0].strip()
+        first_norm = _normalize_ocr_digits(first_part)
+        
+        # If first part is 4+ digits, OCR likely missed a comma (e.g., "4590,000" → should be "4,590,000")
+        # Normalize all parts together to get the full number
+        if len(first_norm) >= 4:
+            # Combine all parts: "4590" + "000" = "4590000"
+            all_parts = ''.join(_normalize_ocr_digits(p.strip()) for p in parts)
+            norm = all_parts
+        else:
+            # Normal format like "4,590,000" - normalize normally
+            norm = _normalize_ocr_digits(token_str)
+    else:
+        # No comma, normalize normally
+        norm = _normalize_ocr_digits(token_str)
+    
+    if not norm:
+        return None
+    
+    try:
+        price = int(norm)
+        return price if price > 0 else None
+    except ValueError:
+        return None
+
+
 def ocr_region_bgr(image_bgr: np.ndarray, ocr_cfg: Dict[str, Any]) -> str:
     psm = int(ocr_cfg.get('psm', 6))
     oem = int(ocr_cfg.get('oem', 3))
@@ -561,27 +768,22 @@ def extract_item_from_card(card_image: np.ndarray, card_config: Dict[str, Any]) 
     price_left_crop = card_config.get('price_left_crop', 0)
     price_region = card_image[price_top:h, price_left_crop:]
     
-    # Process price
+    # Cash icon removal temporarily disabled - detection was too aggressive
+    # The improved price parser handles "96,504" -> "504" cases without needing to remove the icon
+    # If needed in future, can be re-enabled with better detection logic
+    
+    # Process price (icon already removed if detected)
     price_gray = cv2.cvtColor(price_region, cv2.COLOR_BGR2GRAY) if len(price_region.shape) == 3 else price_region
     price_gray = cv2.resize(price_gray, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
     _, price_gray = cv2.threshold(price_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     price_gray = cv2.bitwise_not(price_gray)
     
-    # OCR with numeric emphasis
+    # OCR with numeric emphasis (cash icon already cropped out)
     price_text = pytesseract.image_to_string(price_gray, config='--psm 7 -c tessedit_char_whitelist=0123456789,$,. ').strip()
     
-    # Parse price
-    price_match = _PRICE_RE.search(price_text)
-    if not price_match:
-        return None
-    
-    try:
-        price_token = price_match.group(2) if price_match.lastindex and price_match.lastindex >= 2 else price_match.group(0)
-        norm = _normalize_ocr_digits(price_token)
-        if not norm:
-            return None
-        price = int(norm)
-    except ValueError:
+    # Parse price using improved parser that handles multiple matches and edge cases
+    price = parse_price_from_text(price_text)
+    if price is None:
         return None
     
     if not best_name or price <= 0:

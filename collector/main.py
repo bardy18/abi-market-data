@@ -300,6 +300,7 @@ def continuous_capture():
     try:
         # For manual capture control
         should_capture = False
+        should_save = False  # Only save if 's' is pressed, not 'q'
         last_screenshot = None
         # Keep track of detected elements from last capture for persistent display
         last_detected_cards = []  # List of (x, y, w, h, is_new) from last capture
@@ -313,10 +314,12 @@ def continuous_capture():
             # Keyboard (window focus required)
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
-                print("\n[!] Cancelled by user")
+                print("\n[!] Cancelled by user - not saving")
+                should_save = False
                 break
             elif key == ord('s'):
                 print("\n[OK] Finishing capture...")
+                should_save = True
                 break
             elif key == ord('c'):
                 # Open correction popup
@@ -754,13 +757,14 @@ def continuous_capture():
     
     except KeyboardInterrupt:
         print("\n[!] Interrupted by user")
+        should_save = False
     
     finally:
         # Clean up preview window
         cv2.destroyAllWindows()
     
-    # Save results
-    if collected_items:
+    # Save results (only if user pressed 's', not 'q')
+    if should_save and collected_items:
         print("\n" + "="*60)
         print(f"CAPTURE COMPLETE - {len(collected_items)} unique items")
         print("="*60)
