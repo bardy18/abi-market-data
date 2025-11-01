@@ -698,6 +698,11 @@ class MainWindow(QtWidgets.QMainWindow):
         df = utils.snapshots_to_dataframe(snapshots)
         self.df_all = utils.add_indicators(df, self.cfg.alerts.get('ma_window', 5))
 
+        # Debounce timer for filter changes to prevent excessive refreshes
+        self._filter_debounce_timer = QtCore.QTimer(self)
+        self._filter_debounce_timer.setSingleShot(True)
+        self._filter_debounce_timer.timeout.connect(self.refresh_view)
+
         # UI
         central = QtWidgets.QWidget(self)
         self.setCentralWidget(central)
@@ -764,10 +769,10 @@ class MainWindow(QtWidgets.QMainWindow):
         right_layout.addWidget(self.table, 2)
 
         # Signals
-        self.category_cb.currentIndexChanged.connect(self.refresh_view)
-        self.item_edit.textChanged.connect(self.refresh_view)
-        self.price_min.textChanged.connect(self.refresh_view)
-        self.price_max.textChanged.connect(self.refresh_view)
+        self.category_cb.currentIndexChanged.connect(self._on_filter_changed)
+        self.item_edit.textChanged.connect(self._on_filter_changed)
+        self.price_min.textChanged.connect(self._on_filter_changed)
+        self.price_max.textChanged.connect(self._on_filter_changed)
         self.table.clicked.connect(self._on_table_clicked)
         self.table.doubleClicked.connect(self._on_table_double_clicked)
         # Update selection via keyboard navigation as well
@@ -856,6 +861,12 @@ class MainWindow(QtWidgets.QMainWindow):
                     # If loading fails, try next path
                     continue
 
+    def _on_filter_changed(self) -> None:
+        """Handle filter changes with debouncing to prevent excessive refreshes."""
+        # Restart the debounce timer - this will trigger refresh_view after 300ms of no changes
+        self._filter_debounce_timer.stop()
+        self._filter_debounce_timer.start(300)
+
     def _filtered_df(self) -> pd.DataFrame:
         df = self.df_all
         if df.empty:
@@ -922,6 +933,8 @@ class MainWindow(QtWidgets.QMainWindow):
         df_full = self._filtered_df()
         df = self._latest_per_item(df_full)
         blocker = QtCore.QSignalBlocker(self.table)
+        # Also block the selection model signals to prevent loops
+        selection_blocker = QtCore.QSignalBlocker(self.table.selectionModel()) if self.table.selectionModel() else None
         self.table.setUpdatesEnabled(False)
         try:
             self.table.load(df)
