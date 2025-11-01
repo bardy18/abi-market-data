@@ -414,6 +414,8 @@ def continuous_capture():
             tree_region = screenshot[tree_cfg['y']:tree_cfg['y'] + tree_cfg['height'],
                                     tree_cfg['x']:tree_cfg['x'] + tree_cfg['width']]
             current_category, category_bbox = detect_selected_category(tree_region, config.tesseract_path)
+            # Apply OCR mapping to category name (same as item names)
+            current_category = get_clean_name(current_category)
             
             # Use grid region just to know where to look for cards
             grid_cfg = config.ui_regions['item_grid']
