@@ -77,20 +77,28 @@ def is_card_fully_visible(card_image, card_config):
     return name_content > 5 and price_content > 5
 
 
-def draw_control_labels(display):
-    """Draw control label hints at the top of the display"""
-    y_pos = 15
+def draw_control_labels(display, items_count=None):
+    """Draw control label hints at the top of the display with solid background"""
+    y_pos = 18
+    
+    # Draw solid background bar
+    height = 35
+    cv2.rectangle(display, (0, 0), (display.shape[1], height), (0, 0, 0), -1)
+    
     labels = [
         ("Correction - C", 10),
-        ("Save & Quit - S", 300),
-        ("Quit - Q", 630),
+        ("Save & Quit - S", 240),
+        ("Quit - Q", 480),
     ]
     for text, x_pos in labels:
-        # Draw black outline for visibility
+        # Draw white text (no outline needed with solid background)
         cv2.putText(display, text, (x_pos, y_pos), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 3)
-        # Draw white text on top
-        cv2.putText(display, text, (x_pos, y_pos), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    
+    # Draw items count if provided
+    if items_count is not None:
+        items_text = f"Items: {items_count}"
+        cv2.putText(display, items_text, (650, y_pos), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
 
@@ -108,12 +116,6 @@ def show_correction_popup(collected_items, recent_items_list):
     popup_height = 600
     popup = np.zeros((popup_height, popup_width, 3), dtype=np.uint8)
     
-    # Title
-    cv2.putText(popup, "CORRECT ITEM PRICE", (20, 40), 
-               cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2)
-    cv2.putText(popup, "Select item with number keys, ENTER to correct, ESC to cancel", 
-               (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-    
     # Show recent items (last 20)
     y_start = 100
     y_spacing = 25
@@ -128,124 +130,91 @@ def show_correction_popup(collected_items, recent_items_list):
         cv2.destroyWindow('Correct Price')
         return None, None
     
-    for idx, (item_key, timestamp) in enumerate(valid_items_to_show):
-        item = collected_items[item_key]
-        clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
-        clean_name = clean_name.split('#', 1)[0]  # Remove hash suffix if present
-        
-        y_pos = y_start + idx * y_spacing
-        
-        # Highlight selected item (will be handled by keyboard input)
-        color = (255, 255, 255)
-        
-        # Show number, price, name, category
-        line = f"{idx}: {item['price']:>8,}  {clean_name[:40]:<40}  [{item['category']}]"
-        cv2.putText(popup, line, (20, y_pos), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+    # Keyboard input loop - start in selection mode
+    price_input_mode = False
+    current_price_input = ""
+    selected_item_key = None
+    selected_item_name = None
+    selected_item_current_price = None
     
-    cv2.imshow('Correct Price', popup)
-    
-    # Keyboard input loop for this popup
-    selected_idx = None
     while True:
+        # Re-draw popup based on mode
+        popup = np.zeros((popup_height, popup_width, 3), dtype=np.uint8)
+        
+        if not price_input_mode:
+            # Selection mode
+            cv2.putText(popup, "CORRECT ITEM PRICE", (20, 40), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2)
+            cv2.putText(popup, "Press letter key to select and enter new price, ESC to cancel", 
+                       (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            
+            for draw_idx, (item_key, _) in enumerate(valid_items_to_show):
+                item = collected_items[item_key]
+                clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
+                clean_name = clean_name.split('#', 1)[0]
+                
+                y_pos = y_start + draw_idx * y_spacing
+                color = (255, 255, 255)  # All items same color in selection mode
+                
+                # Use letter labels (a-z) for selection
+                label = chr(ord('a') + draw_idx)
+                line = f"{label}: {item['price']:>8,}  {clean_name[:40]:<40}  [{item['category']}]"
+                cv2.putText(popup, line, (20, y_pos), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        else:
+            # Price input mode
+            cv2.putText(popup, "ENTER NEW PRICE", (20, 40), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2)
+            cv2.putText(popup, selected_item_name[:80], (20, 80), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            cv2.putText(popup, f"Current price: {selected_item_current_price:,}", (20, 120), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (128, 128, 255), 2)
+            
+            if current_price_input:
+                cv2.putText(popup, f"New price: {current_price_input}", (20, 180), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)
+            else:
+                cv2.putText(popup, "Type new price...", (20, 180), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 1.0, (128, 128, 128), 2)
+            
+            cv2.putText(popup, "Press ENTER to save, ESC to cancel", (20, 250), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        
+        cv2.imshow('Correct Price', popup)
+        
         key = cv2.waitKey(0) & 0xFF
         
         if key == 27:  # ESC - cancel
             cv2.destroyWindow('Correct Price')
             return None, None
         
-        # Number keys 0-9
-        if ord('0') <= key <= ord('9'):
-            idx = key - ord('0')
-            if idx < len(valid_items_to_show):
-                selected_idx = idx
-                # Re-draw popup with highlight
-                popup = np.zeros((popup_height, popup_width, 3), dtype=np.uint8)
-                cv2.putText(popup, "CORRECT ITEM PRICE", (20, 40), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2)
-                cv2.putText(popup, "Select item with number keys, ENTER to correct, ESC to cancel", 
-                           (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-                
-                for draw_idx, (item_key, _) in enumerate(valid_items_to_show):
-                    item = collected_items[item_key]
-                    clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
-                    clean_name = clean_name.split('#', 1)[0]
-                    
-                    y_pos = y_start + draw_idx * y_spacing
-                    color = (0, 255, 0) if draw_idx == selected_idx else (255, 255, 255)
-                    
-                    line = f"{draw_idx}: {item['price']:>8,}  {clean_name[:40]:<40}  [{item['category']}]"
-                    cv2.putText(popup, line, (20, y_pos), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-                
-                cv2.imshow('Correct Price', popup)
-        
-        # ENTER key - confirm selection and enter new price
-        elif key == 13:  # ENTER
-            if selected_idx is not None and selected_idx < len(valid_items_to_show):
-                selected_item_key = valid_items_to_show[selected_idx][0]
-                cv2.destroyWindow('Correct Price')
-                return selected_item_key, None  # Return the key, caller will handle price input
-
-
-def get_price_input(current_price):
-    """
-    Display input dialog for entering corrected price.
-    Returns the corrected price as integer or None if cancelled.
-    """
-    input_width = 500
-    input_height = 200
-    input_window = np.zeros((input_height, input_width, 3), dtype=np.uint8)
-    
-    current_input = ""
-    cv2.putText(input_window, "Enter new price (numbers only):", (20, 40), 
-               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    cv2.putText(input_window, f"Current: {current_price:,}", (20, 70), 
-               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 128, 255), 1)
-    cv2.putText(input_window, "Press ENTER to confirm, ESC to cancel", (20, 100), 
-               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (128, 128, 128), 1)
-    
-    def update_display():
-        nonlocal input_window, current_input
-        input_window = np.zeros((input_height, input_width, 3), dtype=np.uint8)
-        cv2.putText(input_window, "Enter new price (numbers only):", (20, 40), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv2.putText(input_window, f"Current: {current_price:,}", (20, 70), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 128, 255), 1)
-        cv2.putText(input_window, "Press ENTER to confirm, ESC to cancel", (20, 100), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (128, 128, 128), 1)
-        if current_input:
-            cv2.putText(input_window, f"New: {current_input}", (20, 130), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-        cv2.imshow('Enter Price', input_window)
-    
-    update_display()
-    
-    while True:
-        key = cv2.waitKey(0) & 0xFF
-        
-        if key == 27:  # ESC - cancel
-            cv2.destroyWindow('Enter Price')
-            return None
-        
-        if key == 13:  # ENTER - confirm
-            try:
-                new_price = int(current_input)
-                cv2.destroyWindow('Enter Price')
-                return new_price
-            except ValueError:
-                continue  # Invalid input, keep waiting
-        
-        # Backspace
-        if key == 8:
-            current_input = current_input[:-1]
-            update_display()
-            continue
-        
-        # Number keys
-        if ord('0') <= key <= ord('9'):
-            current_input += chr(key)
-            update_display()
+        if not price_input_mode:
+            # Selection mode - use letters (a-z) for selection
+            if ord('a') <= key <= ord('z'):
+                idx = key - ord('a')
+                if idx < len(valid_items_to_show):
+                    selected_item_key = valid_items_to_show[idx][0]
+                    selected_item_name = valid_items_to_show[idx][0].split(':', 1)[1] if ':' in valid_items_to_show[idx][0] else valid_items_to_show[idx][0]
+                    selected_item_name = selected_item_name.split('#', 1)[0]
+                    selected_item_current_price = collected_items[selected_item_key]['price']
+                    price_input_mode = True
+                    continue  # Re-draw in price input mode before waiting for next key
+        else:
+            # Price input mode
+            if key == 13:  # ENTER - confirm
+                try:
+                    new_price = int(current_price_input)
+                    if new_price != selected_item_current_price:
+                        cv2.destroyWindow('Correct Price')
+                        return selected_item_key, new_price
+                except ValueError:
+                    continue  # Invalid input, keep waiting
+            
+            elif key == 8:  # Backspace
+                current_price_input = current_price_input[:-1]
+            
+            elif ord('0') <= key <= ord('9'):  # Number keys
+                current_price_input += chr(key)
 
 
 def continuous_capture():
@@ -351,18 +320,16 @@ def continuous_capture():
                 break
             elif key == ord('c'):
                 # Open correction popup
-                item_key, _ = show_correction_popup(collected_items, recent_items_list)
-                if item_key:
-                    current_price = collected_items[item_key]['price']
-                    new_price = get_price_input(current_price)
-                    if new_price is not None and new_price != current_price:
-                        # Update the price (current_price already holds the old price)
-                        collected_items[item_key]['price'] = new_price
-                        print(f"\n[OK] Price corrected: {current_price:,} -> {new_price:,}")
-                        # Re-print the item to show correction
-                        clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
-                        clean_name = clean_name.split('#', 1)[0]
-                        print(f"     {clean_name}  [{collected_items[item_key]['category']}]")
+                item_key, new_price = show_correction_popup(collected_items, recent_items_list)
+                if item_key and new_price is not None:
+                    # Update the price
+                    old_price = collected_items[item_key]['price']
+                    collected_items[item_key]['price'] = new_price
+                    print(f"\n[OK] Price corrected: {old_price:,} -> {new_price:,}")
+                    # Re-print the item to show correction
+                    clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
+                    clean_name = clean_name.split('#', 1)[0]
+                    print(f"     {clean_name}  [{collected_items[item_key]['category']}]")
 
             # Mouse click capture
             if mouse_capture_requested:
@@ -412,9 +379,7 @@ def continuous_capture():
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
                 
                 display = cv2.resize(preview, (800, 450))
-                draw_control_labels(display)
-                cv2.putText(display, f"Items captured: {len(collected_items)}", 
-                           (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                draw_control_labels(display, items_count=len(collected_items))
                 cv2.imshow('ABI Market Capture', display)
                 continue
             
@@ -715,9 +680,13 @@ def continuous_capture():
             
             # Show current screenshot with borders
             display = cv2.resize(screenshot_with_borders, (800, 450))
-            draw_control_labels(display)
-            cv2.putText(display, f"Items: {len(collected_items)} | This view: {len(detected_cards)} | Processed: {processing_time:.2f}s", 
-                       (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            draw_control_labels(display, items_count=len(collected_items))
+            # Show view and processing info on second line
+            status_text = f"This view: {len(detected_cards)} | Processed: {processing_time:.2f}s"
+            cv2.putText(display, status_text, (10, 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 3)
+            cv2.putText(display, status_text, (10, 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             cv2.imshow('ABI Market Capture', display)
             
             # Save all border information and timestamp for time-limited display
