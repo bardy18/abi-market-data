@@ -481,104 +481,158 @@ def continuous_capture():
                     thumb_path = ""
                     h, w = thumb_img.shape[:2]
                     chosen_hash = thumb_hash
-                    # Cross-run reuse: prefer known mapping if file exists
-                    base_prefix = f"{current_category}:{clean_name}"
-                    known_hash = base_to_hash.get(base_prefix)
-                    if known_hash:
-                        known_file = os.path.join(thumb_dir, f"{known_hash}.png")
-                        if os.path.exists(known_file):
-                            chosen_hash = known_hash
+                    
                     if h > 0 and w > 0 and thumb_hash:
-                        # If a very similar hash already exists, reuse that filename
+                        # Get list of existing thumbnail files
                         existing_files = []
                         try:
                             existing_files = [f for f in os.listdir(thumb_dir) if f.lower().endswith('.png')]
                         except Exception:
                             existing_files = []
-                        # Only run similarity passes if not already set by known mapping
-                        if not (known_hash and chosen_hash == known_hash):
-                            chosen_hash = thumb_hash
-                        for fn in existing_files:
-                            stem = os.path.splitext(fn)[0]
-                            dist = hamming_distance_hex(thumb_hash, stem)
-                            if dist is None:
-                                continue
-                            # If both are composite hashes (>=22 hex), compare HSV suffix (last 6 hex) to avoid cross-color reuse
-                            hsv_ok = True
-                            try:
-                                if len(thumb_hash) >= 22 and len(stem) >= 22:
-                                    hsv_a = thumb_hash[-6:]
-                                    hsv_b = stem[-6:]
-                                    ha, sa, va = int(hsv_a[0:2], 16), int(hsv_a[2:4], 16), int(hsv_a[4:6], 16)
-                                    hb, sb, vb = int(hsv_b[0:2], 16), int(hsv_b[2:4], 16), int(hsv_b[4:6], 16)
-                                    # Tighter tolerance: color labels must match closely
-                                    hsv_ok = (abs(ha - hb) <= 10) and (abs(sa - sb) <= 30)
-                            except Exception:
-                                hsv_ok = True
-                            # Tighten hamming threshold further to reduce accidental reuse
-                            if dist <= 3 and hsv_ok:
-                                chosen_hash = stem
-                                break
-                        # Second pass: if not chosen by hash, do visual similarity against near candidates
+                        
+                        # Step 1: Check known mapping from display_mappings (if available)
+                        base_prefix = f"{current_category}:{clean_name}"
+                        known_hash = base_to_hash.get(base_prefix)
+                        if known_hash:
+                            known_file = os.path.join(thumb_dir, f"{known_hash}.png")
+                            if os.path.exists(known_file):
+                                # For known mappings, trust hash distance over strict visual similarity
+                                dist = hamming_distance_hex(thumb_hash, known_hash)
+                                if dist is not None and dist <= 10:  # More lenient for known mappings
+                                    chosen_hash = known_hash
+                        
+                        # Step 2: Check for exact hash match (fastest path)
+                        if chosen_hash == thumb_hash:
+                            exact_file = os.path.join(thumb_dir, f"{thumb_hash}.png")
+                            if os.path.exists(exact_file):
+                                chosen_hash = thumb_hash
+                        
+                        # Step 3: Check for similar hashes (hamming distance) - prioritize hash-based matching
                         if chosen_hash == thumb_hash and existing_files:
-                            # Broad visual similarity search across existing thumbs (no hash-distance gate)
-                            best_fn = ''
-                            best_cos = 0.0
-                            best_ok_struct = False
-                            # Limit to first 500 files for performance
-                            for fn in existing_files[:500]:
+                            # Build list of hash candidates with distances
+                            hash_candidates = []
+                            for fn in existing_files:
+                                stem = os.path.splitext(fn)[0]
+                                dist = hamming_distance_hex(thumb_hash, stem)
+                                if dist is not None:
+                                    hash_candidates.append((dist, stem, fn))
+                            
+                            # Sort by distance (closest first)
+                            hash_candidates.sort(key=lambda x: x[0])
+                            
+                            for dist, stem, fn in hash_candidates:
+                                # Stop if distance is too large (becomes inefficient)
+                                if dist > 15:
+                                    break
+                                
+                                # Check HSV color signature for composite hashes
+                                hsv_ok = True
+                                if len(thumb_hash) >= 22 and len(stem) >= 22:
+                                    try:
+                                        hsv_a = thumb_hash[-6:]
+                                        hsv_b = stem[-6:]
+                                        ha, sa, va = int(hsv_a[0:2], 16), int(hsv_a[2:4], 16), int(hsv_a[4:6], 16)
+                                        hb, sb, vb = int(hsv_b[0:2], 16), int(hsv_b[2:4], 16), int(hsv_b[4:6], 16)
+                                        # More lenient color matching - allow some variation
+                                        hsv_ok = (abs(ha - hb) <= 15) and (abs(sa - sb) <= 40)
+                                    except Exception:
+                                        hsv_ok = True
+                                
+                                # Use hash distance thresholds (prioritize closer matches)
+                                if dist == 0:
+                                    # Exact match (should have been caught in Step 2, but check anyway)
+                                    chosen_hash = stem
+                                    break
+                                elif dist <= 3 and hsv_ok:
+                                    # Very close match - use it without visual verification for speed
+                                    chosen_hash = stem
+                                    break
+                                elif dist <= 8 and hsv_ok:
+                                    # Close match - use lenient visual check (grayscale/masked only, ignore hue)
+                                    cand_path = os.path.join(thumb_dir, fn)
+                                    if os.path.exists(cand_path):
+                                        try:
+                                            cand_img = cv2.imread(cand_path)
+                                            if cand_img is not None:
+                                                # For hash-based matches, trust grayscale/masked, ignore hue
+                                                # Hue can vary due to lighting/compression but structure should match
+                                                if are_images_similar(
+                                                    thumb_img, cand_img,
+                                                    gray_rmse_threshold=15.0,
+                                                    hue_rmse_threshold=100.0,  # Very lenient - ignore hue for hash matches
+                                                    sat_mask_threshold=60,
+                                                    masked_gray_rmse_threshold=18.0,
+                                                ):
+                                                    chosen_hash = stem
+                                                    break
+                                        except Exception:
+                                            continue
+                                elif dist <= 15 and hsv_ok:
+                                    # Medium distance match - still try but with very lenient checks
+                                    cand_path = os.path.join(thumb_dir, fn)
+                                    if os.path.exists(cand_path):
+                                        try:
+                                            cand_img = cv2.imread(cand_path)
+                                            if cand_img is not None:
+                                                # Very lenient - trust hash distance
+                                                if are_images_similar(
+                                                    thumb_img, cand_img,
+                                                    gray_rmse_threshold=20.0,  # More lenient
+                                                    hue_rmse_threshold=100.0,  # Ignore hue
+                                                    sat_mask_threshold=60,
+                                                    masked_gray_rmse_threshold=25.0,  # More lenient
+                                                ):
+                                                    chosen_hash = stem
+                                                    break
+                                        except Exception:
+                                            continue
+                        
+                        # Step 4: Last resort - visual similarity search (only if hash matching failed)
+                        if chosen_hash == thumb_hash and existing_files:
+                            # Sort by hash distance to prioritize likely matches
+                            candidates_with_dist = []
+                            for fn in existing_files:
+                                stem = os.path.splitext(fn)[0]
+                                dist = hamming_distance_hex(thumb_hash, stem)
+                                priority = dist if dist is not None else 999
+                                candidates_with_dist.append((priority, fn))
+                            candidates_with_dist.sort(key=lambda x: x[0])
+                            
+                            # Check candidates in priority order
+                            for _, fn in candidates_with_dist:
                                 try:
                                     cand_path = os.path.join(thumb_dir, fn)
+                                    if not os.path.exists(cand_path):
+                                        continue
                                     cand_img = cv2.imread(cand_path)
                                     if cand_img is None:
                                         continue
-                                    cos_ok = hsv_hist_similarity(
+                                    
+                                    # Last resort visual check - very lenient (for cases where hash didn't match)
+                                    if are_images_similar(
                                         thumb_img, cand_img,
+                                        gray_rmse_threshold=20.0,  # More lenient
+                                        hue_rmse_threshold=100.0,  # Ignore hue differences
                                         sat_mask_threshold=60,
-                                        bins=16,
-                                        min_cosine=0.0,
-                                    )
-                                    # Compute actual cosine to rank (recompute inside helper is fine; small cost)
-                                    # Quick reject: if not similar by color histogram at all, skip
-                                    if not cos_ok:
-                                        continue
-                                    # Re-evaluate with threshold by directly computing cosine
-                                    # We approximate by calling again with higher threshold to avoid extra code
-                                    strong_color = hsv_hist_similarity(
-                                        thumb_img, cand_img,
-                                        sat_mask_threshold=60,
-                                        bins=16,
-                                        min_cosine=0.985,
-                                    )
-                                    if not strong_color:
-                                        continue
-                                    # Confirm with structural similarity at slightly relaxed thresholds
-                                    ok_struct = are_images_similar(
-                                        thumb_img, cand_img,
-                                        gray_rmse_threshold=11.0,
-                                        hue_rmse_threshold=18.0,
-                                        sat_mask_threshold=60,
-                                        masked_gray_rmse_threshold=14.0,
-                                    )
-                                    if ok_struct:
-                                        best_fn = fn
-                                        best_ok_struct = True
-                                        break
+                                        masked_gray_rmse_threshold=25.0,  # More lenient
+                                    ):
+                                        chosen_hash = os.path.splitext(fn)[0]
+                                        break  # Found a match, stop searching
                                 except Exception:
                                     continue
-                            if best_ok_struct and best_fn:
-                                chosen_hash = os.path.splitext(best_fn)[0]
-                        # Filename is the (possibly adjusted) hash
+                        
+                        # Step 5: Finalize - create file only if it doesn't exist
                         out_name = f"{chosen_hash}.png"
                         out_full = os.path.join(thumb_dir, out_name)
                         if not os.path.exists(out_full):
-                            # Keep aspect ratio; target height 96
+                            # File doesn't exist, create it
                             scale = 96.0 / float(h)
                             resized = cv2.resize(thumb_img, (max(1, int(w*scale)), 96), interpolation=cv2.INTER_AREA)
                             try:
                                 cv2.imwrite(out_full, resized)
                             except Exception:
                                 out_full = ""
+                        
                         thumb_path = out_full
                     # Use the actually chosen filename hash as the canonical thumb hash
                     thumb_hash_final = chosen_hash if chosen_hash else thumb_hash
