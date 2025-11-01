@@ -49,6 +49,7 @@ class TrendChart(QtWidgets.QWidget):
         self._ax = None
         self._on_add_callback = None  # Store callback for manual tooltip triggering
         self._manual_annotation = None  # Store manual annotation for latest point
+        self._latest_idx = None  # Track index of latest point to prevent double tooltip
 
     def plot(self, df: pd.DataFrame, item_key: str, display_name: str = None) -> None:
         """
@@ -62,6 +63,7 @@ class TrendChart(QtWidgets.QWidget):
         self.figure.clear()
         self._data_points = {}
         self._scatter = None
+        self._latest_idx = None  # Reset latest point tracking
         # Clear old manual annotation
         if self._manual_annotation is not None:
             try:
@@ -229,6 +231,7 @@ class TrendChart(QtWidgets.QWidget):
                     # Custom formatter for tooltips - need to capture self in closure
                     data_points = self._data_points  # Capture for closure
                     canvas = self.canvas  # Capture for redraw
+                    chart_instance = self  # Capture self for accessing _latest_idx
                     
                     def on_add(sel):
                         idx = sel.index
@@ -300,6 +303,17 @@ class TrendChart(QtWidgets.QWidget):
                     
                     def on_add_with_tracking(sel):
                         nonlocal current_selection, current_selection_idx  # Allow modifying the outer variable
+                        
+                        # Ignore clicks on the latest point (already has tooltip displayed)
+                        if chart_instance._latest_idx is not None and sel.index == chart_instance._latest_idx:
+                            try:
+                                if sel.annotation:
+                                    sel.annotation.set_visible(False)
+                                cursor_obj.remove_selection(sel)
+                            except (AttributeError, ValueError, KeyError):
+                                pass
+                            canvas.draw_idle()
+                            return  # Don't show the tooltip
                         
                         # If clicking the same point that already has a tooltip, toggle it off
                         if current_selection_idx is not None and current_selection_idx == sel.index:
@@ -416,6 +430,7 @@ class TrendChart(QtWidgets.QWidget):
         try:
             # Find the latest point (highest index since data is sorted chronologically)
             latest_idx = max(self._data_points.keys())
+            self._latest_idx = latest_idx  # Store for click prevention
             ts, price, dt_str = self._data_points[latest_idx]
             
             # Get the actual data coordinates from the scatter plot
