@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Continuous capture mode - takes screenshots while user navigates.
-Press SPACE to start/stop, ESC to finish and save.
 Click the preview window to capture each screen.
+Press C to correct recently scanned item prices.
+Press S to finish and save.
 """
 import cv2
 import re
@@ -76,23 +77,194 @@ def is_card_fully_visible(card_image, card_config):
     return name_content > 5 and price_content > 5
 
 
+def draw_control_labels(display):
+    """Draw control label hints at the top of the display"""
+    y_pos = 15
+    labels = [
+        ("Correction - C", 10),
+        ("Save & Quit - S", 300),
+        ("Quit - Q", 630),
+    ]
+    for text, x_pos in labels:
+        # Draw black outline for visibility
+        cv2.putText(display, text, (x_pos, y_pos), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 3)
+        # Draw white text on top
+        cv2.putText(display, text, (x_pos, y_pos), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+
+def show_correction_popup(collected_items, recent_items_list):
+    """
+    Show a popup window allowing user to correct prices of recently captured items.
+    Returns (selected_item_key, corrected_price) or (None, None) if cancelled.
+    """
+    if not recent_items_list:
+        print("[!] No recent items to correct")
+        return None, None
+    
+    # Create popup window
+    popup_width = 900
+    popup_height = 600
+    popup = np.zeros((popup_height, popup_width, 3), dtype=np.uint8)
+    
+    # Title
+    cv2.putText(popup, "CORRECT ITEM PRICE", (20, 40), 
+               cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2)
+    cv2.putText(popup, "Select item with number keys, ENTER to correct, ESC to cancel", 
+               (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    
+    # Show recent items (last 20)
+    y_start = 100
+    y_spacing = 25
+    items_to_show = recent_items_list[-20:]  # Last 20 items
+    
+    # Filter to only items that still exist in collected_items
+    valid_items_to_show = [(item_key, timestamp) for item_key, timestamp in items_to_show 
+                           if item_key in collected_items]
+    
+    if not valid_items_to_show:
+        print("[!] No valid recent items to correct")
+        cv2.destroyWindow('Correct Price')
+        return None, None
+    
+    for idx, (item_key, timestamp) in enumerate(valid_items_to_show):
+        item = collected_items[item_key]
+        clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
+        clean_name = clean_name.split('#', 1)[0]  # Remove hash suffix if present
+        
+        y_pos = y_start + idx * y_spacing
+        
+        # Highlight selected item (will be handled by keyboard input)
+        color = (255, 255, 255)
+        
+        # Show number, price, name, category
+        line = f"{idx}: {item['price']:>8,}  {clean_name[:40]:<40}  [{item['category']}]"
+        cv2.putText(popup, line, (20, y_pos), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+    
+    cv2.imshow('Correct Price', popup)
+    
+    # Keyboard input loop for this popup
+    selected_idx = None
+    while True:
+        key = cv2.waitKey(0) & 0xFF
+        
+        if key == 27:  # ESC - cancel
+            cv2.destroyWindow('Correct Price')
+            return None, None
+        
+        # Number keys 0-9
+        if ord('0') <= key <= ord('9'):
+            idx = key - ord('0')
+            if idx < len(valid_items_to_show):
+                selected_idx = idx
+                # Re-draw popup with highlight
+                popup = np.zeros((popup_height, popup_width, 3), dtype=np.uint8)
+                cv2.putText(popup, "CORRECT ITEM PRICE", (20, 40), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2)
+                cv2.putText(popup, "Select item with number keys, ENTER to correct, ESC to cancel", 
+                           (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                
+                for draw_idx, (item_key, _) in enumerate(valid_items_to_show):
+                    item = collected_items[item_key]
+                    clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
+                    clean_name = clean_name.split('#', 1)[0]
+                    
+                    y_pos = y_start + draw_idx * y_spacing
+                    color = (0, 255, 0) if draw_idx == selected_idx else (255, 255, 255)
+                    
+                    line = f"{draw_idx}: {item['price']:>8,}  {clean_name[:40]:<40}  [{item['category']}]"
+                    cv2.putText(popup, line, (20, y_pos), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                
+                cv2.imshow('Correct Price', popup)
+        
+        # ENTER key - confirm selection and enter new price
+        elif key == 13:  # ENTER
+            if selected_idx is not None and selected_idx < len(valid_items_to_show):
+                selected_item_key = valid_items_to_show[selected_idx][0]
+                cv2.destroyWindow('Correct Price')
+                return selected_item_key, None  # Return the key, caller will handle price input
+
+
+def get_price_input(current_price):
+    """
+    Display input dialog for entering corrected price.
+    Returns the corrected price as integer or None if cancelled.
+    """
+    input_width = 500
+    input_height = 200
+    input_window = np.zeros((input_height, input_width, 3), dtype=np.uint8)
+    
+    current_input = ""
+    cv2.putText(input_window, "Enter new price (numbers only):", (20, 40), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    cv2.putText(input_window, f"Current: {current_price:,}", (20, 70), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 128, 255), 1)
+    cv2.putText(input_window, "Press ENTER to confirm, ESC to cancel", (20, 100), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (128, 128, 128), 1)
+    
+    def update_display():
+        nonlocal input_window, current_input
+        input_window = np.zeros((input_height, input_width, 3), dtype=np.uint8)
+        cv2.putText(input_window, "Enter new price (numbers only):", (20, 40), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(input_window, f"Current: {current_price:,}", (20, 70), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (128, 128, 255), 1)
+        cv2.putText(input_window, "Press ENTER to confirm, ESC to cancel", (20, 100), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (128, 128, 128), 1)
+        if current_input:
+            cv2.putText(input_window, f"New: {current_input}", (20, 130), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        cv2.imshow('Enter Price', input_window)
+    
+    update_display()
+    
+    while True:
+        key = cv2.waitKey(0) & 0xFF
+        
+        if key == 27:  # ESC - cancel
+            cv2.destroyWindow('Enter Price')
+            return None
+        
+        if key == 13:  # ENTER - confirm
+            try:
+                new_price = int(current_input)
+                cv2.destroyWindow('Enter Price')
+                return new_price
+            except ValueError:
+                continue  # Invalid input, keep waiting
+        
+        # Backspace
+        if key == 8:
+            current_input = current_input[:-1]
+            update_display()
+            continue
+        
+        # Number keys
+        if ord('0') <= key <= ord('9'):
+            current_input += chr(key)
+            update_display()
+
+
 def continuous_capture():
     """Main continuous capture loop"""
     print("\n" + "="*60)
     print("CONTINUOUS CAPTURE MODE")
     print("="*60)
     print("\nControls:")
-    print("  SPACE - Start/Pause capture")
-    print("  ESC   - Finish and save snapshot")
+    print("  C     - Correct a recently scanned item price")
+    print("  S     - Finish and save snapshot")
     print("  Q     - Quit without saving")
     print("\nInstructions:")
-    print("  1. Start capture with SPACE")
-    print("  2. Click and navigate in the game")
-    print("  3. Click the preview window to capture each screen")
-    print("  4. Watch the processing time to gauge your capture speed")
-    print("  5. Watch for green borders on newly captured items")
-    print("  6. Pause briefly on each screen so items are fully visible")
-    print("  7. Press ESC when done to save all captured items")
+    print("  1. Click and navigate in the game")
+    print("  2. Click the preview window to capture each screen")
+    print("  3. Watch the processing time to gauge your capture speed")
+    print("  4. Watch for green borders on newly captured items")
+    print("  5. Pause briefly on each screen so items are fully visible")
+    print("  6. Press C to correct any wrong prices you see in the logs")
+    print("  7. Press S when done to save all captured items")
     print("\n" + "="*60)
     
     # Load config (relative to this script's location)
@@ -117,7 +289,7 @@ def continuous_capture():
     # Initialize collection
     # Use category+display name as key for deduplication (handles truncated names)
     collected_items = {}  # "category:displayName" -> {ocrName, price, category}
-    capturing = False
+    recent_items_list = []  # List of (item_key, timestamp) tuples for correction popup
     capture_count = 0
     # Cross-run reuse: preload known hashes from display mappings
     base_to_hash = {}
@@ -139,27 +311,15 @@ def continuous_capture():
         base_to_hash = {}
     
     print("\n" + "="*60)
-    print("READY! Press SPACE to start capturing...")
+    print("READY! Click preview window to capture items")
     print("="*60 + "\n")
     
     # Create preview window
     cv2.namedWindow('ABI Market Capture', cv2.WINDOW_NORMAL)
     cv2.resizeWindow('ABI Market Capture', 800, 450)
     
-    # Show initial status (no startup delay)
-    init_screen = np.zeros((450, 800, 3), dtype=np.uint8)
-    cv2.putText(init_screen, "Press SPACE to start", 
-               (200, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-    cv2.putText(init_screen, "Click preview to capture each screen", 
-               (160, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-    cv2.putText(init_screen, "ESC to finish and save", 
-               (220, 270), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    cv2.putText(init_screen, "Q to quit without saving", 
-               (210, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    cv2.imshow('ABI Market Capture', init_screen)
-    
     # Mouse click on preview triggers capture; keyboard only used when window has focus
-    print("\n[INFO] Click the preview window to capture (SPACE to start, ESC to finish)")
+    print("\n[INFO] Click the preview window to capture (S to finish)")
     mouse_capture_requested = False
     def _on_mouse(event, x, y, flags, param):
         nonlocal mouse_capture_requested
@@ -186,19 +346,26 @@ def continuous_capture():
             if key == ord('q'):
                 print("\n[!] Cancelled by user")
                 break
-            elif key == 27:  # ESC
+            elif key == ord('s'):
                 print("\n[OK] Finishing capture...")
                 break
-            elif key == ord(' '):
-                capturing = not capturing
-                if capturing:
-                    print("\n[OK] READY - Click preview to capture each screen")
-                    print("     Navigate and scroll at your own pace")
-                else:
-                    print("\n[||] PAUSED - Press SPACE to resume")
+            elif key == ord('c'):
+                # Open correction popup
+                item_key, _ = show_correction_popup(collected_items, recent_items_list)
+                if item_key:
+                    current_price = collected_items[item_key]['price']
+                    new_price = get_price_input(current_price)
+                    if new_price is not None and new_price != current_price:
+                        # Update the price (current_price already holds the old price)
+                        collected_items[item_key]['price'] = new_price
+                        print(f"\n[OK] Price corrected: {current_price:,} -> {new_price:,}")
+                        # Re-print the item to show correction
+                        clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
+                        clean_name = clean_name.split('#', 1)[0]
+                        print(f"     {clean_name}  [{collected_items[item_key]['category']}]")
 
             # Mouse click capture
-            if mouse_capture_requested and capturing:
+            if mouse_capture_requested:
                 should_capture = True
                 mouse_capture_requested = False
             
@@ -213,15 +380,7 @@ def continuous_capture():
                 time.sleep(0.1)
                 continue
             
-            # If not capturing, just show preview
-            if not capturing:
-                display = cv2.resize(screenshot, (800, 450))
-                cv2.putText(display, "PAUSED - Press SPACE to start", 
-                           (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                cv2.imshow('ABI Market Capture', display)
-                continue
-            
-            # If capturing mode but no capture triggered, show live preview with time-limited borders
+            # If no capture triggered, show live preview with time-limited borders
             if not should_capture:
                 preview = screenshot.copy()
                 
@@ -253,10 +412,9 @@ def continuous_capture():
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
                 
                 display = cv2.resize(preview, (800, 450))
-                cv2.putText(display, "READY - Click preview to capture", 
-                           (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                cv2.putText(display, f"Items: {len(collected_items)}", 
-                           (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                draw_control_labels(display)
+                cv2.putText(display, f"Items captured: {len(collected_items)}", 
+                           (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
                 cv2.imshow('ABI Market Capture', display)
                 continue
             
@@ -503,11 +661,16 @@ def continuous_capture():
                             'colorSig': compute_color_signature(thumb_img)
                         }
                         new_items_this_capture += 1
+                        # Add to recent items list for correction popup
+                        recent_items_list.append((item_key, time.time()))
+                        # Keep only last 100 items
+                        if len(recent_items_list) > 100:
+                            recent_items_list.pop(0)
                         # Show both names if different
                         if ocr_name != clean_name:
-                            print(f"  ${item_data['price']:>8,}  {clean_name} (OCR: {ocr_name})  [{current_category}]")
+                            print(f"  {item_data['price']:>8,}  {clean_name} (OCR: {ocr_name})  [{current_category}]")
                         else:
-                            print(f"  ${item_data['price']:>8,}  {clean_name}  [{current_category}]")
+                            print(f"  {item_data['price']:>8,}  {clean_name}  [{current_category}]")
             
             # Calculate processing time
             processing_time = time.time() - capture_start_time
@@ -552,10 +715,9 @@ def continuous_capture():
             
             # Show current screenshot with borders
             display = cv2.resize(screenshot_with_borders, (800, 450))
-            status = "CAPTURING" if capturing else "PAUSED"
-            status_color = (0, 255, 0) if capturing else (0, 165, 255)
-            cv2.putText(display, f"{status} | Items: {len(collected_items)} | This view: {len(detected_cards)} | Processed: {processing_time:.2f}s", 
-                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
+            draw_control_labels(display)
+            cv2.putText(display, f"Items: {len(collected_items)} | This view: {len(detected_cards)} | Processed: {processing_time:.2f}s", 
+                       (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             cv2.imshow('ABI Market Capture', display)
             
             # Save all border information and timestamp for time-limited display
@@ -617,7 +779,7 @@ def continuous_capture():
         for item_key, data in sorted_items[:10]:
             # item_key format: "category:cleanName" - extract clean name for output
             clean_name = item_key.split(':', 1)[1] if ':' in item_key else item_key
-            print(f"  ${data['price']:>8,}  {clean_name}  [{data['category']}]")
+            print(f"  {data['price']:>8,}  {clean_name}  [{data['category']}]")
         
         # Check for potential OCR duplicates (similar names with same price in same category)
         # This helps identify items that should be mapped together
@@ -640,7 +802,7 @@ def continuous_capture():
             print("These items have the same price and similar names in the same category.")
             print("Consider adding mappings to: mappings/ocr_mappings.json\n")
             for disp1, disp2, ocr1, ocr2, price, category in potential_duplicates:
-                print(f"  ${price:>8,}  '{ocr1}' vs '{ocr2}'  [{category}]")
+                print(f"  {price:>8,}  '{ocr1}' vs '{ocr2}'  [{category}]")
                 print(f"             (Display: '{disp1}' vs '{disp2}')")
             print("="*60)
     else:

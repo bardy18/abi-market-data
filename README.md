@@ -7,6 +7,7 @@ A computer vision-based market intelligence system for Arena Breakout: Infinite.
 - 🤖 **Automated Data Collection** - Computer vision captures items as you navigate
 - 📊 **Real-time Visual Feedback** - See exactly what's being captured with on-screen borders
 - 🎯 **Smart Category Detection** - Automatically identifies which category you're viewing
+- ✏️ **In-Collection Price Correction** - Fix OCR errors on the fly without editing JSON
 - 📈 **Historical Price Tracking** - Analyze trends across multiple snapshots
 - 🖥️ **Interactive GUI** - Browse, search, and visualize market data
 - 🔍 **OCR-Powered** - Reads item names and prices with high accuracy
@@ -48,13 +49,12 @@ A computer vision-based market intelligence system for Arena Breakout: Infinite.
    ```
 
 3. **Controls**:
-   - `SPACE` - Start/pause capturing
-   - Click preview window - Capture current screen
-   - `ESC` - Finish and save snapshot
+   - `C` - Correct recently scanned item prices
+   - `S` - Finish and save snapshot
    - `Q` - Quit without saving
+   - Click preview window - Capture current screen
 
 4. **Collection Process**:
-   - Press `SPACE` to start
    - **Keep your mouse in the game window** - click and navigate freely
    - Click the preview window to capture each screen
    - The system will automatically detect which category you're viewing
@@ -64,7 +64,7 @@ A computer vision-based market intelligence system for Arena Breakout: Infinite.
      - 🔵 **Light blue borders** = Already captured (duplicates)
      - 🔷 **Cyan thin borders** = Detected card positions (not all may be fully visible)
      - 🟣 **Magenta box** = Category being detected
-   - Press `ESC` when you've captured all categories
+   - Press `S` when you've captured all categories
 
 5. **What Gets Saved**:
    - Snapshot file: `snapshots/YYYY-MM-DD_HH-MM.json`
@@ -104,8 +104,6 @@ More frequent captures = better trend analysis!
 - Each full marketplace scan takes **5-10 minutes**
 - Processing time is shown after each capture (typically 1-3 seconds)
 - Watch the processing time to gauge your capture rhythm
-- You can pause (`SPACE`) and resume anytime
-- Sights and Magazines have the most items
 
 ### Accuracy
 - Click the preview window when items are fully loaded and visible
@@ -114,24 +112,23 @@ More frequent captures = better trend analysis!
 - Light blue borders mean you've already captured those items - safe to scroll past
 - Processing time displayed shows OCR was completed
 
-### Coverage
-- Always scan in the same order for consistency
-- Complete categories (typical item counts):
-  - Helmet (~40 items)
-  - Mask (~11 items)
-  - Body Armor (~30 items)
-  - Unarmored Chest Rigs (~17 items)
-  - Armored Rig (~17 items)
-  - Backpack (~20 items)
-  - Headset (~5 items)
-  - Gas Mask (~9 items)
-  - Sights (~100 items)
-  - Magazine (~150 items)
-
 ### After Collection
 - Review the summary showing items per category
 - Check `snapshots/` folder for your new snapshot
 - Open Trading App to analyze your data
+
+### Correcting OCR Errors
+If you notice a wrong price in the logs:
+- Press `C` during collection to open the correction popup
+- View the last 20 scanned items with prices
+- Type the item number (0-9) to select it
+- Press `ENTER` to confirm selection
+- Enter the correct price using number keys
+- Press `ENTER` again to save the correction
+- The correction is logged and saved to your snapshot
+- Press `ESC` at any time to cancel
+
+This saves you from manually editing the JSON file later!
 
 ## Project Structure
 
