@@ -752,11 +752,17 @@ class MainWindow(QtWidgets.QMainWindow):
         # Chart + Thumbnail row (non-movable, chart takes remaining space)
         self.chart = TrendChart(self)
         
-        # Thumbnail area with star button above it
+        # Thumbnail area with buttons above it
         thumb_area = QtWidgets.QWidget(self)
         thumb_layout = QtWidgets.QVBoxLayout(thumb_area)
         thumb_layout.setContentsMargins(0, 0, 0, 0)
         thumb_layout.setSpacing(4)
+        
+        # Button row for watchlist and blacklist
+        button_row = QtWidgets.QWidget(self)
+        button_row_layout = QtWidgets.QHBoxLayout(button_row)
+        button_row_layout.setContentsMargins(0, 0, 0, 0)
+        button_row_layout.setSpacing(4)
         
         # Star button for watchlist
         self.watchlist_btn = QtWidgets.QPushButton(self)
@@ -780,17 +786,43 @@ class MainWindow(QtWidgets.QMainWindow):
             }
         ''')
         
+        # Hide/blacklist button
+        self.blacklist_btn = QtWidgets.QPushButton(self)
+        self.blacklist_btn.setText('✕')
+        self.blacklist_btn.setFixedSize(30, 30)
+        self.blacklist_btn.setStyleSheet('''
+            QPushButton {
+                background-color: #1a1a1a;
+                border: 1px solid #333333;
+                border-radius: 4px;
+                font-size: 16px;
+                color: #888888;
+            }
+            QPushButton:hover {
+                background-color: #2a2a2a;
+                border-color: #555555;
+                color: #c0c0c0;
+            }
+            QPushButton:pressed {
+                background-color: #0a0a0a;
+            }
+        ''')
+        
+        button_row_layout.addWidget(self.watchlist_btn)
+        button_row_layout.addWidget(self.blacklist_btn)
+        button_row_layout.addStretch()
+        
         self.thumb_label = QtWidgets.QLabel(self)
         self.thumb_label.setAlignment(QtCore.Qt.AlignCenter)
         self.thumb_label.setText('Thumbnail will appear here')
         self.thumb_label.setFixedWidth(140)
         self.thumb_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Expanding)
         
-        # Add spacer to position button closer to thumbnail
+        # Add spacer to position buttons closer to thumbnail
         thumb_layout.addStretch(5)
-        thumb_layout.addWidget(self.watchlist_btn, alignment=QtCore.Qt.AlignCenter)
+        thumb_layout.addWidget(button_row, alignment=QtCore.Qt.AlignCenter)
         thumb_layout.addWidget(self.thumb_label, stretch=10)
-        # No bottom spacer to push button lower
+        # No bottom spacer to push buttons lower
         
         self.chart.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         chart_row = QtWidgets.QWidget(self)
@@ -817,14 +849,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.alerts_list.itemClicked.connect(self._on_alert_clicked)
         self.watchlist_list.itemClicked.connect(self._on_watchlist_clicked)
         self.watchlist_btn.clicked.connect(self._on_watchlist_btn_clicked)
+        self.blacklist_btn.clicked.connect(self._on_blacklist_btn_clicked)
 
-        # Track current selected itemKey for watchlist button state
+        # Track current selected itemKey for button states
         self._current_item_key = None
 
         # Initial load
         self.refresh_view()
         self._update_alerts()
         self._update_watchlist()
+        # Initialize blacklist button state
+        self._update_blacklist_button_state()
 
     def _apply_dark_theme(self) -> None:
         app = QtWidgets.QApplication.instance()
@@ -945,6 +980,10 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             df_sorted = df.copy()
         latest = df_sorted.groupby('itemKey', as_index=False).tail(1)
+        # Filter out blacklisted items
+        blacklisted_keys = set(utils.load_blacklist())
+        if blacklisted_keys:
+            latest = latest[~latest['itemKey'].isin(blacklisted_keys)]
         # Keep presentation order: sort by price desc by default
         try:
             latest = latest.sort_values(['price'], ascending=[False])
@@ -1031,9 +1070,10 @@ class MainWindow(QtWidgets.QMainWindow):
             display_name = model.item(row, 0).text()  # item column
             category = model.item(row, 1).text()  # category column
             
-            # Store current item key for watchlist button state
+            # Store current item key for button states
             self._current_item_key = item_key
             self._update_watchlist_button_state()
+            self._update_blacklist_button_state()
             
             df_full = self._filtered_df()
             if item_key:
@@ -1213,6 +1253,90 @@ class MainWindow(QtWidgets.QMainWindow):
                         background-color: #0a0a0a;
                     }
                 ''')
+    
+    def _update_blacklist_button_state(self) -> None:
+        """Update the blacklist button to show active state based on current item."""
+        if not self._current_item_key:
+            self.blacklist_btn.setText('✕')
+            self.blacklist_btn.setEnabled(False)
+            # Reset to default gray styling
+            self.blacklist_btn.setStyleSheet('''
+                QPushButton {
+                    background-color: #1a1a1a;
+                    border: 1px solid #333333;
+                    border-radius: 4px;
+                    font-size: 16px;
+                    color: #888888;
+                }
+                QPushButton:hover {
+                    background-color: #2a2a2a;
+                    border-color: #555555;
+                    color: #c0c0c0;
+                }
+                QPushButton:pressed {
+                    background-color: #0a0a0a;
+                }
+            ''')
+        else:
+            self.blacklist_btn.setEnabled(True)
+            if utils.is_blacklisted(self._current_item_key):
+                self.blacklist_btn.setText('✕')
+                # Red color for blacklisted state
+                self.blacklist_btn.setStyleSheet('''
+                    QPushButton {
+                        background-color: #1a1a1a;
+                        border: 1px solid #333333;
+                        border-radius: 4px;
+                        font-size: 16px;
+                        color: #ff4444;
+                    }
+                    QPushButton:hover {
+                        background-color: #2a2a2a;
+                        border-color: #555555;
+                        color: #ff6666;
+                    }
+                    QPushButton:pressed {
+                        background-color: #0a0a0a;
+                    }
+                ''')
+            else:
+                self.blacklist_btn.setText('✕')
+                # Reset to default gray styling
+                self.blacklist_btn.setStyleSheet('''
+                    QPushButton {
+                        background-color: #1a1a1a;
+                        border: 1px solid #333333;
+                        border-radius: 4px;
+                        font-size: 16px;
+                        color: #888888;
+                    }
+                    QPushButton:hover {
+                        background-color: #2a2a2a;
+                        border-color: #555555;
+                        color: #c0c0c0;
+                    }
+                    QPushButton:pressed {
+                        background-color: #0a0a0a;
+                    }
+                ''')
+    
+    def _on_blacklist_btn_clicked(self) -> None:
+        """Toggle current item in blacklist."""
+        if not self._current_item_key:
+            return
+        if utils.is_blacklisted(self._current_item_key):
+            utils.remove_from_blacklist(self._current_item_key)
+        else:
+            utils.add_to_blacklist(self._current_item_key)
+            # Remove from watchlist if it's there (can't watch blacklisted items)
+            if utils.is_in_watchlist(self._current_item_key):
+                utils.remove_from_watchlist(self._current_item_key)
+        self._update_blacklist_button_state()
+        self._update_watchlist_button_state()  # Update watchlist button state too
+        # Refresh view to hide/show the item and update widgets
+        self.refresh_view()
+        self._update_alerts()  # Update Top Movers
+        self._update_watchlist()  # Update My Watchlist
     
     def _on_watchlist_btn_clicked(self) -> None:
         """Toggle current item in watchlist."""

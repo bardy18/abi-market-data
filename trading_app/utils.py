@@ -14,6 +14,8 @@ import numpy as np
 _display_mapping = None
 # Watchlist cache
 _watchlist_data = None
+# Blacklist cache
+_blacklist_data = None
 
 def load_display_mapping() -> Dict[str, str]:
     """Load the display to friendly name mapping from display_mappings.json"""
@@ -91,6 +93,66 @@ def remove_from_watchlist(item_key: str) -> None:
 def is_in_watchlist(item_key: str) -> bool:
     """Check if an item is in the watchlist."""
     items = load_watchlist()
+    return item_key in items
+
+
+def _blacklist_path() -> Path:
+    """Get the path to the blacklist.json file."""
+    return Path(__file__).parent / 'blacklist.json'
+
+
+def load_blacklist() -> List[str]:
+    """Load the blacklist from blacklist.json, returning list of itemKeys."""
+    global _blacklist_data
+    if _blacklist_data is None:
+        blacklist_file = _blacklist_path()
+        if blacklist_file.exists():
+            try:
+                with open(blacklist_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # Handle both old format (list) and new format (dict with items list)
+                    if isinstance(data, dict):
+                        _blacklist_data = data.get('items', [])
+                    else:
+                        _blacklist_data = data if isinstance(data, list) else []
+            except Exception:
+                _blacklist_data = []
+        else:
+            _blacklist_data = []
+    return _blacklist_data.copy()
+
+
+def save_blacklist(items: List[str]) -> None:
+    """Save the blacklist to blacklist.json."""
+    global _blacklist_data
+    blacklist_file = _blacklist_path()
+    blacklist_file.parent.mkdir(parents=True, exist_ok=True)
+    # Save as JSON with items list
+    data = {'items': items}
+    with open(blacklist_file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    _blacklist_data = items.copy()
+
+
+def add_to_blacklist(item_key: str) -> None:
+    """Add an item to the blacklist."""
+    items = load_blacklist()
+    if item_key not in items:
+        items.append(item_key)
+        save_blacklist(items)
+
+
+def remove_from_blacklist(item_key: str) -> None:
+    """Remove an item from the blacklist."""
+    items = load_blacklist()
+    if item_key in items:
+        items.remove(item_key)
+        save_blacklist(items)
+
+
+def is_blacklisted(item_key: str) -> bool:
+    """Check if an item is in the blacklist."""
+    items = load_blacklist()
     return item_key in items
 
 
@@ -237,6 +299,10 @@ def find_alerts(df: pd.DataFrame, spike_pct: float, drop_pct: float) -> List[Dic
     alerts: List[Dict[str, Any]] = []
     if df.empty:
         return alerts
+    # Filter out blacklisted items
+    blacklisted_keys = set(load_blacklist())
+    if blacklisted_keys and 'itemKey' in df.columns:
+        df = df[~df['itemKey'].isin(blacklisted_keys)]
     # Group by itemKey to handle items with same name in different categories
     latest = df.groupby('itemKey').tail(1)
     for _, row in latest.iterrows():
@@ -303,6 +369,10 @@ def find_watchlist_items(df: pd.DataFrame) -> List[Dict[str, Any]]:
     watchlist_keys = load_watchlist()
     if not watchlist_keys:
         return out
+    # Filter out blacklisted items first
+    blacklisted_keys = set(load_blacklist())
+    if blacklisted_keys and 'itemKey' in df.columns:
+        df = df[~df['itemKey'].isin(blacklisted_keys)]
     # Get latest row per itemKey
     latest = df.groupby('itemKey').tail(1)
     latest = latest.copy()
