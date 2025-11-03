@@ -1,45 +1,45 @@
 {
-  "timestamp": 1762041741,
+  "timestamp": 1762205502,
   "categories": {
     "Flammables": [
       {
         "itemName": "Matches",
-        "price": 504,
+        "price": 490,
         "thumbHash": "0100003c1c0800000303217139190101175fb1"
       },
       {
         "itemName": "Lighter",
-        "price": 2054,
+        "price": 1872,
         "thumbHash": "0101181818180000030310101010000814a278"
       },
       {
         "itemName": "Candle",
-        "price": 2304,
+        "price": 2256,
         "thumbHash": "01001818181800000303303030300004089571"
       },
       {
         "itemName": "Metal Lighter",
-        "price": 3440,
+        "price": 3280,
         "thumbHash": "010038383838000003032121212101016a0e19"
       },
       {
         "itemName": "Blue Gunpowder",
-        "price": 6254,
+        "price": 6095,
         "thumbHash": "0110181818181800033330313030300095595d"
       },
       {
         "itemName": "Green Gunpowder",
-        "price": 10788,
+        "price": 10701,
         "thumbHash": "011018181818180003133131313131015b4166"
       },
       {
         "itemName": "Red Gunpowder",
-        "price": 17600,
+        "price": 13440,
         "thumbHash": "011018181818180003133131313131015b4166"
       },
       {
         "itemName": "Kerosene Lamp",
-        "price": 7452,
+        "price": 6156,
         "thumbHash": "03010018181818000313097131313101914614"
       },
       {
@@ -49,17 +49,17 @@
       },
       {
         "itemName": "Oil Drum",
-        "price": 33252,
+        "price": 26406,
         "thumbHash": "0100347c7c7c2000035365cdc8c94101639690"
       },
       {
         "itemName": "Nitrocellulose",
-        "price": 60690,
+        "price": 80920,
         "thumbHash": "00003c7c7c3c0000470370e8e979190151112b"
       },
       {
         "itemName": "Propane Tank",
-        "price": 30331,
+        "price": 29093,
         "thumbHash": "010018383838380003333161616161015c797c"
       },
       {
@@ -76,27 +76,27 @@
     "Building Materials": [
       {
         "itemName": "Nut",
-        "price": 1176,
+        "price": 1106,
         "thumbHash": "0301183c3c0800000303316171310101944411"
       },
       {
         "itemName": "Bolts",
-        "price": 1050,
+        "price": 1008,
         "thumbHash": "010100183c0000000303003078100008580b12"
       },
       {
         "itemName": "Tape",
-        "price": 900,
+        "price": 1215,
         "thumbHash": "0100183c3c000000030330687020000482a272"
       },
       {
         "itemName": "Power Cord",
-        "price": 810,
+        "price": 1080,
         "thumbHash": "030109083c1c00000303090971190101715257"
       },
       {
         "itemName": "WPR Tape",
-        "price": 1920,
+        "price": 2054,
         "thumbHash": "0100183c3c3800000323306968700000203e94"
       },
       {
@@ -106,77 +106,77 @@
       },
       {
         "itemName": "Plexiglass",
-        "price": 1825,
+        "price": 2175,
         "thumbHash": "01011c3c3c18000023033030783000007e4228"
       },
       {
         "itemName": "T-Shaped Plug",
-        "price": 2275,
+        "price": 1550,
         "thumbHash": "010118383838000003033161617101014f5d36"
       },
       {
         "itemName": "Hose",
-        "price": 4397,
+        "price": 3854,
         "thumbHash": "8383191c1c1800000b033129293901018c5308"
       },
       {
         "itemName": "Silicone Tube",
-        "price": 5832,
+        "price": 5022,
         "thumbHash": "0301003c7e0000000303016960410101984a34"
       },
       {
         "itemName": "Brass Pipe",
-        "price": 5610,
+        "price": 5720,
         "thumbHash": "010818181818180047333131313131011ea984"
       },
       {
         "itemName": "Cable",
-        "price": 7102,
+        "price": 5494,
         "thumbHash": "0101183c3c18000003033169616101011caa81"
       },
       {
         "itemName": "Wood Board",
-        "price": 11808,
+        "price": 17056,
         "thumbHash": "0100003e7e38000003030d79f94101011663bc"
       },
       {
         "itemName": "Rubber Pad",
-        "price": 15092,
+        "price": 18424,
         "thumbHash": "01003e3c3c3c3c00037d746d5d5579018e3f17"
       },
       {
         "itemName": "Acoustic Panel",
-        "price": 18414,
+        "price": 16038,
         "thumbHash": "00003c3c3c3c3c00037d616171d9f9011463bb"
       },
       {
         "itemName": "Sealing Foam",
-        "price": 34880,
+        "price": 14080,
         "thumbHash": "01181818181818000333313131313101207083"
       },
       {
         "itemName": "Bulletproof Gel",
-        "price": 12236,
+        "price": 15778,
         "thumbHash": "01191818181818001313313131317101136751"
       },
       {
         "itemName": "Steel Pipe",
-        "price": 33696,
+        "price": 20412,
         "thumbHash": "0118181818181800033331313131310193414c"
       },
       {
         "itemName": "Bag of Cement",
-        "price": 39688,
+        "price": 36736,
         "thumbHash": "013c3c381838180003696131716171010d7ca8"
       },
       {
         "itemName": "Impact-resistant Ha...",
-        "price": 65520,
+        "price": 60528,
         "thumbHash": "0108383838380000076161616161610187583c"
       },
       {
         "itemName": "Titanium Alloy Plate",
-        "price": 79499,
+        "price": 81438,
         "thumbHash": "00001c1c3c38080003393939797171018f4011"
       },
       {
@@ -193,62 +193,62 @@
     "Computer Parts": [
       {
         "itemName": "Capacitors",
-        "price": 3780,
+        "price": 3612,
         "thumbHash": "030100383800000003030171712901019a6f58"
       },
       {
         "itemName": "Retro Heat Sink",
-        "price": 4300,
+        "price": 4042,
         "thumbHash": "0100183c3c18000003033070703000080a7f9e"
       },
       {
         "itemName": "CPU Fan",
-        "price": 7888,
+        "price": 4964,
         "thumbHash": "0301003c3c0000000303117161310105945224"
       },
       {
         "itemName": "Circuit Board",
-        "price": 6831,
+        "price": 5037,
         "thumbHash": "01001c3c3c3c00000303312921310101425a73"
       },
       {
         "itemName": "Flash Drive",
-        "price": 7700,
+        "price": 5950,
         "thumbHash": "0101081818300000030339313121010120a9c3"
       },
       {
         "itemName": "Floppy Disk",
-        "price": 7455,
+        "price": 5751,
         "thumbHash": "0100181c3c38000003033171717101010c8ad8"
       },
       {
         "itemName": "Power Cable",
-        "price": 9152,
+        "price": 4752,
         "thumbHash": "0301001c3c0000002303113971210101944c18"
       },
       {
         "itemName": "VGA Display Cable",
-        "price": 7209,
+        "price": 8989,
         "thumbHash": "0301003c7000000003030171e50101019b5742"
       },
       {
         "itemName": "Writing Pad",
-        "price": 6030,
+        "price": 5896,
         "thumbHash": "0301001c3c1800000b03113939390101275d53"
       },
       {
         "itemName": "Semiconductor Chip",
-        "price": 5168,
+        "price": 10336,
         "thumbHash": "0101081c3810000003031931715301018f4408"
       },
       {
         "itemName": "Broken LCD",
-        "price": 7304,
+        "price": 16268,
         "thumbHash": "0100083c3c0000004703794571010101765d83"
       },
       {
         "itemName": "Floppy Drive",
-        "price": 12264,
+        "price": 17640,
         "thumbHash": "0100003c7c000000030301f0e02101015c111c"
       },
       {
@@ -258,12 +258,12 @@
       },
       {
         "itemName": "SAS",
-        "price": 22865,
+        "price": 26900,
         "thumbHash": "0100081c38000000030311317131010193410b"
       },
       {
         "itemName": "Chip Processor",
-        "price": 27913,
+        "price": 26016,
         "thumbHash": "0301001c3c1000000303013171310101395b4f"
       },
       {
@@ -278,12 +278,12 @@
       },
       {
         "itemName": "SSD",
-        "price": 23177,
+        "price": 21021,
         "thumbHash": "01001818181800000303313131310101184d78"
       },
       {
         "itemName": "Circuit Boa.",
-        "price": 25568,
+        "price": 31008,
         "thumbHash": "0101081c383000000303113171610101956a58"
       },
       {
@@ -293,7 +293,7 @@
       },
       {
         "itemName": "PSU",
-        "price": 51578,
+        "price": 45917,
         "thumbHash": "00003c3c7c7c00000339696859f1750196413d"
       },
       {
@@ -315,27 +315,27 @@
     "Energy Items": [
       {
         "itemName": "Battery",
-        "price": 2158,
+        "price": 1924,
         "thumbHash": "03010c18183000000303193121210101199397"
       },
       {
         "itemName": "D-size Battery",
-        "price": 5148,
+        "price": 4488,
         "thumbHash": "0101183818180000030330603018000883525a"
       },
       {
         "itemName": "Phone Battery",
-        "price": 6984,
+        "price": 7344,
         "thumbHash": "0100083c3c3800000303797979790105560c1b"
       },
       {
         "itemName": "Powerbank",
-        "price": 2701,
+        "price": 3358,
         "thumbHash": "0101003c3c0000000303017979390101986932"
       },
       {
         "itemName": "Solar Panel",
-        "price": 40077,
+        "price": 54351,
         "thumbHash": "0101003c3c0000000303296169010101a04553"
       },
       {
@@ -349,95 +349,95 @@
         "thumbHash": "01013c7c7c3c00002303795151510101b16089"
       }
     ],
-    "Tools": [
+    "Unknown": [
       {
         "itemName": "Bottle Opener",
-        "price": 1230,
+        "price": 1005,
         "thumbHash": "03010c1c3030000003031931616101010a8964"
       },
       {
         "itemName": "Can Opener",
-        "price": 1248,
+        "price": 1008,
         "thumbHash": "0101001c382000000303083860600008a0490d"
       },
       {
         "itemName": "Measuring Tape",
-        "price": 2366,
+        "price": 2158,
         "thumbHash": "010018383838000003033070707000043193b0"
       },
       {
         "itemName": "Screwdriver",
-        "price": 1586,
+        "price": 2158,
         "thumbHash": "03010d08103000000303091121210101477076"
       },
       {
         "itemName": "Wrench",
-        "price": 1728,
+        "price": 2052,
         "thumbHash": "01010c181810000003232811302000005c0f12"
       },
       {
         "itemName": "Awl",
-        "price": 2295,
+        "price": 2322,
         "thumbHash": "03010819103000000303191131210101156578"
       },
       {
         "itemName": "Pliers",
-        "price": 4928,
+        "price": 4576,
         "thumbHash": "01010c1c3810000023030838706000001e697c"
       },
       {
         "itemName": "Shears",
-        "price": 4545,
+        "price": 4455,
         "thumbHash": "03010c181830000003031951312101011c6c83"
       },
       {
         "itemName": "Magnet",
-        "price": 5060,
+        "price": 4278,
         "thumbHash": "0101181c3c3800000b03312929290101105c77"
       },
       {
         "itemName": "Flashlight",
-        "price": 3080,
+        "price": 4088,
         "thumbHash": "0101003c3c0000000303015951430101934048"
       },
       {
         "itemName": "MP Tools",
-        "price": 4514,
+        "price": 5476,
         "thumbHash": "030104183810000047030931313101010782a3"
       },
       {
         "itemName": "Static Tape",
-        "price": 3922,
+        "price": 8214,
         "thumbHash": "0301183c3c1800000303316969710101144449"
       },
       {
         "itemName": "Spark Plug",
-        "price": 8550,
+        "price": 8100,
         "thumbHash": "03010418383000000303093961610101973e15"
       },
       {
         "itemName": "Pipe Wrench",
-        "price": 8100,
+        "price": 9720,
         "thumbHash": "030100707e00000003030141e80101010c6b66"
       },
       {
-        "itemName": "Safety Hammer",
-        "price": 14490,
-        "thumbHash": "03011838080c00000303313119090101460a11"
-      },
-      {
         "itemName": "Glue Gun",
-        "price": 5733,
+        "price": 9919,
         "thumbHash": "0301007e30000000030301f0614101011a9890"
       },
       {
+        "itemName": "Safety Hammer",
+        "price": 5658,
+        "thumbHash": "03011838080c00000303313119090101460a11"
+      },
+      {
         "itemName": "Toolbox",
-        "price": 17850,
+        "price": 9010,
         "thumbHash": "0101003c3c3c00000303396171790101925154"
       },
       {
         "itemName": "High Power Flashligh...",
-        "price": 17888,
+        "price": 10492,
         "thumbHash": "0101007c1c000000030301417d050101914b14"
       },
       {
@@ -447,7 +447,7 @@
       },
       {
         "itemName": "Pipe Cleaning Kit",
-        "price": 13508,
+        "price": 16578,
         "thumbHash": "01010818181800000303313131310101234c81"
       },
       {
@@ -462,12 +462,12 @@
       },
       {
         "itemName": "Electric Drill",
-        "price": 36830,
+        "price": 38735,
         "thumbHash": "011c3c080c0c0c000339701909391901358498"
       },
       {
         "itemName": "Toolkit",
-        "price": 29440,
+        "price": 40320,
         "thumbHash": "0101003e3c38000003036140616101457f462c"
       },
       {
@@ -477,7 +477,7 @@
       },
       {
         "itemName": "Hydraulic Rebar Cut...",
-        "price": 43296,
+        "price": 41328,
         "thumbHash": "0101007c7e000000030301e1f00101458fa690"
       },
       {
@@ -487,44 +487,44 @@
       },
       {
         "itemName": "Hydraulic Expander",
-        "price": 239871,
+        "price": 233388,
         "thumbHash": "0309181818303000031b1131312563019e5c1e"
       },
       {
         "itemName": "High-Frequency Coil",
-        "price": 316320,
+        "price": 336090,
         "thumbHash": "01191818181838000333311131317101156447"
       }
     ],
     "Household Items": [
       {
         "itemName": "Toothpaste",
-        "price": 1104,
+        "price": 1280,
         "thumbHash": "01010818181000000303191131310101a05dad"
       },
       {
         "itemName": "Soap",
-        "price": 1152,
+        "price": 1312,
         "thumbHash": "01000c1c383800000303183060600008253ea4"
       },
       {
         "itemName": "Toilet Paper",
-        "price": 1615,
+        "price": 1377,
         "thumbHash": "0100383c3c3000000303706860600004174645"
       },
       {
         "itemName": "Mug",
-        "price": 1360,
+        "price": 1326,
         "thumbHash": "0100383c3c38000003037161616101015e1020"
       },
       {
         "itemName": "Metal Spoon",
-        "price": 1411,
+        "price": 1377,
         "thumbHash": "030104083030000003232c19606000005d0f10"
       },
       {
         "itemName": "Clog Remover",
-        "price": 1890,
+        "price": 2241,
         "thumbHash": "0101181818180000030331313131010163757f"
       },
       {
@@ -534,43 +534,38 @@
       },
       {
         "itemName": "Enamel Cup",
-        "price": 2688,
+        "price": 2212,
         "thumbHash": "0100103c3c38000003032161756101014c8186"
       },
       {
         "itemName": "Rust Remover",
-        "price": 2604,
+        "price": 2492,
         "thumbHash": "01011818181800000b031131313101016d9283"
       },
       {
         "itemName": "Metal Horse Comb",
-        "price": 2465,
+        "price": 2262,
         "thumbHash": "0301000c3c20000003030911614301011895c2"
       },
       {
         "itemName": "ES Lamp",
-        "price": 3102,
+        "price": 4982,
         "thumbHash": "01010c1c3830000047031931216101015d1016"
       },
       {
         "itemName": "Shaver",
-        "price": 5184,
+        "price": 4320,
         "thumbHash": "030104183030000003030951616101017f50a0"
       },
       {
         "itemName": "Bag of Seeds",
-        "price": 5376,
+        "price": 4992,
         "thumbHash": "0100181818180000030331313131010123839d"
       },
       {
         "itemName": "Insecticide",
-        "price": 5992,
+        "price": 5880,
         "thumbHash": "010118181818180003133131313131010b6195"
-      },
-      {
-        "itemName": "Bleach",
-        "price": 5045,
-        "thumbHash": "01001818181818000313312121212101826253"
       },
       {
         "itemName": "Surface Cleaner",
@@ -578,78 +573,83 @@
         "thumbHash": "011818181818180003333131313171011f979f"
       },
       {
+        "itemName": "Bleach",
+        "price": 4176,
+        "thumbHash": "01001818181818000313312121212101826253"
+      },
+      {
         "itemName": "Urea",
-        "price": 6726,
+        "price": 6490,
         "thumbHash": "010018181818000003033131313101010373ec"
       },
       {
         "itemName": "Linen",
-        "price": 6540,
+        "price": 4920,
         "thumbHash": "0100181c18180000430331313171010118458c"
       },
       {
         "itemName": "Coffee Can",
-        "price": 2964,
+        "price": 3344,
         "thumbHash": "0101181818180000030331313131010111786c"
       },
       {
         "itemName": "Glue",
-        "price": 3696,
+        "price": 8316,
         "thumbHash": "01011818181800000303313131310101189c7a"
       },
       {
         "itemName": "Playing Card",
-        "price": 8814,
+        "price": 8658,
         "thumbHash": "01001c1c3838000003033131717101011fc2b4"
       },
       {
         "itemName": "Pencil Sharpener",
-        "price": 7426,
+        "price": 8216,
         "thumbHash": "0100383c3c3800000323717169712901757799"
       },
       {
         "itemName": "Shampoo",
-        "price": 6716,
+        "price": 9936,
         "thumbHash": "0118181818181800033331313131310965648e"
       },
       {
         "itemName": "Canteen",
-        "price": 9672,
+        "price": 6975,
         "thumbHash": "01011818383800000303117121310101944212"
       },
       {
         "itemName": "Photo Frame",
-        "price": 4230,
+        "price": 9494,
         "thumbHash": "0100003c3c1c00000303397171790101276f7e"
       },
       {
         "itemName": "Chemical Fiber",
-        "price": 3800,
+        "price": 7220,
         "thumbHash": "010018181818000003433131313101018e400c"
       },
       {
         "itemName": "UV Lamp",
-        "price": 14840,
+        "price": 6300,
         "thumbHash": "01010c1c38300000032b193121610101d3ae64"
       },
       {
         "itemName": "Tweed",
-        "price": 8004,
+        "price": 15312,
         "thumbHash": "0100181818180000030b313131310503c14019"
       },
       {
         "itemName": "Cotton Cloth",
-        "price": 6688,
+        "price": 17424,
         "thumbHash": "010018181838000003033131313101013c0822"
       },
       {
         "itemName": "Camping Tarp",
-        "price": 16020,
+        "price": 19046,
         "thumbHash": "0101003c3c1800000303016179710101674b59"
       },
       {
         "itemName": "Camping Lantern",
-        "price": 17820,
+        "price": 15660,
         "thumbHash": "0101181818181000030331313131310133643d"
       },
       {
@@ -659,7 +659,7 @@
       },
       {
         "itemName": "Game Cartridge",
-        "price": 18348,
+        "price": 29745,
         "thumbHash": "0100003c3c1800000303016171790101437299"
       },
       {
@@ -679,7 +679,7 @@
       },
       {
         "itemName": "Bag of Fertilizer",
-        "price": 13200,
+        "price": 31020,
         "thumbHash": "00003c3c383c3800037971716161610128749b"
       },
       {
@@ -689,17 +689,17 @@
       },
       {
         "itemName": "Lute",
-        "price": 25830,
+        "price": 21812,
         "thumbHash": "010004183830000003270d3171612101136683"
       },
       {
         "itemName": "Handheld Fill Light",
-        "price": 22078,
+        "price": 24983,
         "thumbHash": "030110181808000003233131311929018b5930"
       },
       {
         "itemName": "Camping Stove",
-        "price": 26040,
+        "price": 32550,
         "thumbHash": "01003c3c3c3c3800036361717171610147605d"
       },
       {
@@ -714,12 +714,12 @@
       },
       {
         "itemName": "Space Lab Toybox",
-        "price": 255200,
+        "price": 261580,
         "thumbHash": "01001c3c3c3c00000303313939794109586085"
       },
       {
         "itemName": "Skateboard",
-        "price": 365120,
+        "price": 371640,
         "thumbHash": "0100007e7e000000030301def6c10345ac6cac"
       }
     ],
@@ -731,52 +731,52 @@
       },
       {
         "itemName": "Cotton Balls",
-        "price": 1476,
+        "price": 1296,
         "thumbHash": "01001c3c1818000003033830303000089b67bb"
       },
       {
         "itemName": "NaCl",
-        "price": 2436,
+        "price": 2088,
         "thumbHash": "01001818181800000303303010300004947297"
       },
       {
         "itemName": "Medical Sponge",
-        "price": 2320,
+        "price": 2523,
         "thumbHash": "01003c3c3838000003037171616101019c3eac"
       },
       {
         "itemName": "H202",
-        "price": 5076,
+        "price": 5880,
         "thumbHash": "010118181818000003233031303000004d5d98"
       },
       {
         "itemName": "Medical Scissors",
-        "price": 5500,
+        "price": 6150,
         "thumbHash": "03010c09381000000303091971310101824417"
       },
       {
         "itemName": "Disinfectant",
-        "price": 4386,
+        "price": 5253,
         "thumbHash": "010118181818000023033030303000000e7b59"
       },
       {
         "itemName": "Glucose Injection",
-        "price": 10240,
+        "price": 4160,
         "thumbHash": "01000018181800000303117131310101540b18"
       },
       {
         "itemName": "Syringe",
-        "price": 3969,
+        "price": 8748,
         "thumbHash": "03010c1c180000000b031919314101017b5f44"
       },
       {
         "itemName": "Medical Item Case",
-        "price": 3362,
+        "price": 3526,
         "thumbHash": "0100181c3c180000030331317173010133665d"
       },
       {
         "itemName": "Drug Nebulizer",
-        "price": 21294,
+        "price": 17836,
         "thumbHash": "01011818080808004713313111111101914e73"
       },
       {
@@ -796,7 +796,7 @@
       },
       {
         "itemName": "Insulin Pump",
-        "price": 65559,
+        "price": 83148,
         "thumbHash": "010110381c080000030371713111010138489d"
       },
       {
@@ -806,29 +806,29 @@
       },
       {
         "itemName": "Metal Heart",
-        "price": 252970,
+        "price": 265310,
         "thumbHash": "01181c3c3c3c380003333561716161451c6f6a"
       }
     ],
     "Collectibles": [
       {
         "itemName": "Spur",
-        "price": 8928,
+        "price": 9600,
         "thumbHash": "0301007c7e40000003034159c5c50101117226"
       },
       {
         "itemName": "Silver Badge",
-        "price": 15620,
+        "price": 13774,
         "thumbHash": "0100183c3c1800000303317979310109285872"
       },
       {
         "itemName": "Stamp",
-        "price": 14544,
+        "price": 7200,
         "thumbHash": "01001838381800000303313131310105235971"
       },
       {
         "itemName": "Commemorative Coin",
-        "price": 14500,
+        "price": 21460,
         "thumbHash": "0100183c3c18000003033179717101011a8fa3"
       },
       {
@@ -843,22 +843,22 @@
       },
       {
         "itemName": "Desk Clock",
-        "price": 17610,
+        "price": 19371,
         "thumbHash": "010108181818000023031131313111011c4c76"
       },
       {
         "itemName": "Gold-rimmed Glasses",
-        "price": 36112,
+        "price": 29600,
         "thumbHash": "0301003c3c00000003030169e9010101165140"
       },
       {
         "itemName": "Handmade Hunting ...",
-        "price": 14145,
+        "price": 30221,
         "thumbHash": "0301000c3c0000000b03111971290101166e5d"
       },
       {
         "itemName": "Plaster Sculpture",
-        "price": 45609,
+        "price": 33050,
         "thumbHash": "0118181818181c0003333131317371011a4b12"
       },
       {
@@ -898,7 +898,7 @@
       },
       {
         "itemName": "Gold Cube",
-        "price": 266400,
+        "price": 293040,
         "thumbHash": "01003c3c3c38000003437171717101011d9691"
       },
       {
@@ -928,7 +928,7 @@
       },
       {
         "itemName": "Jade Bracelet",
-        "price": 493182,
+        "price": 502315,
         "thumbHash": "0100003c3c1800000303316969310101601017"
       },
       {
@@ -1003,7 +1003,7 @@
       },
       {
         "itemName": "Utopia Hazmat Case",
-        "price": 4590000,
+        "price": 4500000,
         "thumbHash": "01003c3c3c3c000003037161697901012972a1"
       },
       {
@@ -1015,12 +1015,12 @@
     "Paper": [
       {
         "itemName": "Sticky Notes",
-        "price": 1728,
+        "price": 1674,
         "thumbHash": "010038383c18000003037161792101018c4786"
       },
       {
         "itemName": "Old Book",
-        "price": 1349,
+        "price": 1178,
         "thumbHash": "01001c1c3c38000003033030303000086c497f"
       },
       {
@@ -1030,17 +1030,17 @@
       },
       {
         "itemName": "Desk Calendar",
-        "price": 2520,
+        "price": 2310,
         "thumbHash": "01001818383800000303313131310101325770"
       },
       {
         "itemName": "Hardcover",
-        "price": 10573,
+        "price": 10185,
         "thumbHash": "01011818181800000303313131310101085b75"
       },
       {
         "itemName": "Document",
-        "price": 20240,
+        "price": 17848,
         "thumbHash": "0100003c3c0000000303117171310101824417"
       },
       {
@@ -1055,34 +1055,34 @@
       },
       {
         "itemName": "Voss Journal",
-        "price": 93754,
+        "price": 78408,
         "thumbHash": "01001818181800000b033131313101015b0c1c"
       }
     ],
     "Instruments": [
       {
         "itemName": "Rectifier",
-        "price": 5512,
+        "price": 4732,
         "thumbHash": "0101083c3c0c0000030331695919010157615c"
       },
       {
         "itemName": "Pressure Gauge",
-        "price": 9702,
+        "price": 9996,
         "thumbHash": "01000018180800000303313131390109570b1b"
       },
       {
         "itemName": "Wave Filter",
-        "price": 12702,
+        "price": 6570,
         "thumbHash": "0100003c3c18000003033971637101055b6b4a"
       },
       {
         "itemName": "Multimeter",
-        "price": 13020,
+        "price": 11160,
         "thumbHash": "010018181838000003033131313131019e4a77"
       },
       {
         "itemName": "Light Meter",
-        "price": 21830,
+        "price": 18880,
         "thumbHash": "030100001830000003032911212101015c0f10"
       },
       {
@@ -1092,22 +1092,22 @@
       },
       {
         "itemName": "Air Tightness Tester",
-        "price": 13772,
+        "price": 12207,
         "thumbHash": "0101003c3c180000230311393929010120cc66"
       },
       {
         "itemName": "Gimbal",
-        "price": 33600,
+        "price": 30240,
         "thumbHash": "030118383c1800000303316169310101874a0e"
       },
       {
         "itemName": "Oscilloscope",
-        "price": 33432,
+        "price": 32238,
         "thumbHash": "0100003c3c0c00000b03217979390101903f15"
       },
       {
         "itemName": "Antenna",
-        "price": 77039,
+        "price": 78918,
         "thumbHash": "010070763c3830000343c1ed6573c101610f19"
       },
       {
@@ -1119,27 +1119,27 @@
     "Miscellaneous Military Item": [
       {
         "itemName": "Filter Canister",
-        "price": 5976,
+        "price": 9130,
         "thumbHash": "0100003c3c180000030331797971010146578a"
       },
       {
         "itemName": "Military Compass",
-        "price": 6636,
+        "price": 8988,
         "thumbHash": "030108041c1800000303090d717101092f4a46"
       },
       {
         "itemName": "Military Canteen",
-        "price": 7029,
+        "price": 6633,
         "thumbHash": "01010018181800000303113131310105590d13"
       },
       {
         "itemName": "Safety Cord",
-        "price": 9916,
+        "price": 5624,
         "thumbHash": "0101003c3c00000003030179610101011c8988"
       },
       {
         "itemName": "Bosun's Whistle",
-        "price": 5850,
+        "price": 6150,
         "thumbHash": "03013018180400000303617111090101600f12"
       },
       {
@@ -1149,12 +1149,12 @@
       },
       {
         "itemName": "Receiver",
-        "price": 19190,
+        "price": 16910,
         "thumbHash": "838381818189898123230101010909011b6838"
       },
       {
         "itemName": "Signal Jammer",
-        "price": 15936,
+        "price": 13824,
         "thumbHash": "030101000018180003030141111131012b4940"
       },
       {
@@ -1169,12 +1169,12 @@
       },
       {
         "itemName": "Military Tool Kit",
-        "price": 13992,
+        "price": 16536,
         "thumbHash": "0101003c3c1c00004703293931290101324750"
       },
       {
         "itemName": "Paracord",
-        "price": 35192,
+        "price": 32204,
         "thumbHash": "0100181c3c18000003033969617101011c5e6e"
       },
       {
@@ -1189,7 +1189,7 @@
       },
       {
         "itemName": "Artillery Periscope ...",
-        "price": 44136,
+        "price": 49040,
         "thumbHash": "01191818181800000333313131311101774523"
       },
       {
@@ -1199,7 +1199,7 @@
       },
       {
         "itemName": "Leveler",
-        "price": 229395,
+        "price": 223800,
         "thumbHash": "0301007e3e000000030301f4600103458b6817"
       },
       {
@@ -1221,67 +1221,67 @@
     "Electronics": [
       {
         "itemName": "Fuse",
-        "price": 6032,
+        "price": 5720,
         "thumbHash": "01010c18183000000303193131610101510b17"
       },
       {
         "itemName": "BP Machine",
-        "price": 8925,
+        "price": 8330,
         "thumbHash": "01001c3c3c18000003037969697901098f9a78"
       },
       {
         "itemName": "Cassette Walkman",
-        "price": 8686,
+        "price": 6020,
         "thumbHash": "0100181c3818000003033139713101059a6f5b"
       },
       {
         "itemName": "Broken Phone",
-        "price": 7656,
+        "price": 6873,
         "thumbHash": "01001818181800000303313131310101975026"
       },
       {
         "itemName": "Classic Radio",
-        "price": 4653,
+        "price": 5841,
         "thumbHash": "0101003c3c1800000303296961790101855263"
       },
       {
         "itemName": "Security Camera",
-        "price": 6384,
+        "price": 13072,
         "thumbHash": "0101003c3c000000030301715941010129494c"
       },
       {
         "itemName": "Card Reader",
-        "price": 19096,
+        "price": 14476,
         "thumbHash": "0101383c3c3000002303616161690101834411"
       },
       {
         "itemName": "Mobile Phone",
-        "price": 6708,
+        "price": 16848,
         "thumbHash": "01001818181800000303317131310101984e29"
       },
       {
         "itemName": "Shutter Cable",
-        "price": 5945,
+        "price": 5846,
         "thumbHash": "03010018181800000b03112121210101924014"
       },
       {
         "itemName": "DVD",
-        "price": 7372,
+        "price": 8342,
         "thumbHash": "0101007e7c00000003030178c14901019a6c0a"
       },
       {
         "itemName": "Lens",
-        "price": 31185,
+        "price": 31482,
         "thumbHash": "0301003c3c0000004703017169210101457256"
       },
       {
         "itemName": "Data Cable",
-        "price": 16536,
+        "price": 26076,
         "thumbHash": "8301001c20200000030301754141010199542e"
       },
       {
         "itemName": "Petso",
-        "price": 27636,
+        "price": 24816,
         "thumbHash": "010100383830000003030961616101011a8aae"
       },
       {
@@ -1306,7 +1306,7 @@
       },
       {
         "itemName": "Laptop Computer",
-        "price": 277420,
+        "price": 296335,
         "thumbHash": "01001e1e1e3c000003033c343df00101343e58"
       },
       {
