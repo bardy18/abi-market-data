@@ -1008,6 +1008,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 sel_key = self.table.model_.item(sel_index.row(), 4).data(QtCore.Qt.UserRole)  # itemKey stored in ma% column (4)
             except Exception:
                 sel_key = ''
+        
+        # Preserve sort order
+        header = self.table.horizontalHeader()
+        sort_column = header.sortIndicatorSection()
+        sort_order = header.sortIndicatorOrder()
+        # Default to column 4 (ma%) descending if no sort is set
+        if sort_column < 0:
+            sort_column = 4
+            sort_order = QtCore.Qt.SortOrder.DescendingOrder
 
         df_full = self._filtered_df()
         df = self._latest_per_item(df_full)
@@ -1018,6 +1027,13 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             self.table.load(df)
             QtCore.QCoreApplication.processEvents()
+            # Restore sort order
+            try:
+                self.table.model_.sort(sort_column, sort_order)
+                # Update header sort indicator to match
+                header.setSortIndicator(sort_column, sort_order)
+            except Exception:
+                pass
             # Helper to find model row by itemKey
             def _find_row_by_key(key: str) -> int:
                 if not key:
