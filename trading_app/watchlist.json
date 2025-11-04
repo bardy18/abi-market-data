@@ -1,7 +1,6 @@
 {
   "items": [
     "Energy Items:Powerbank#0101003c3c0000000303017979390101986932",
-    "Energy Items:Phone Battery#0100083c3c3800000303797979790105560c1b",
     "Building Materials:Wood Board#0100003e7e38000003030d79f94101011663bc",
     "Computer Parts:Semiconductor Chip#0101081c3810000003031931715301018f4408",
     "Instruments:Gimbal#030118383c1800000303316169310101874a0e",
@@ -10,7 +9,6 @@
     "Paper:Hardcover#01011818181800000303313131310101085b75",
     "Miscellaneous Military Item:Safety Cord#0101003c3c00000003030179610101011c8988",
     "Miscellaneous Military Item:Filter Canister#0100003c3c180000030331797971010146578a",
-    "Instruments:Wave Filter#0100003c3c18000003033971637101055b6b4a",
     "Computer Parts:CPU Fan#0301003c3c0000000303117161310105945224"
   ]
 }
