@@ -575,7 +575,7 @@ class DataTable(QtWidgets.QTableView):
 
     def load(self, df: pd.DataFrame) -> None:
         self.model_.clear()
-        headers = ['item', 'category', 'price', 'ma', 'ma%', 'vol', 'vol%']
+        headers = ['item', 'category', 'price', 'ma', 'ma%', 'range', 'range%']
         self.model_.setHorizontalHeaderLabels(headers)
         for _, row in df.iterrows():
             items = []
@@ -635,24 +635,24 @@ class DataTable(QtWidgets.QTableView):
                 color = QtGui.QColor(136, 136, 136)  # Gray
                 ma_pct_item.setForeground(QtGui.QBrush(color))
             items.append(ma_pct_item)
-            # Volatility absolute - rounded to whole numbers with commas
-            vol_val = row.get('vol', np.nan)
-            vol_item = QtGui.QStandardItem(f"{float(vol_val):,.0f}" if not pd.isna(vol_val) else '')
-            vol_item.setData(float(vol_val) if not pd.isna(vol_val) else 0.0, self.sort_role)
-            items.append(vol_item)
-            # Volatility percent - rounded to whole numbers (commas only if >= 1000)
-            vol_pct = row.get('volPct', np.nan) if 'volPct' in row else np.nan
-            vol_pct_item = QtGui.QStandardItem(f"{float(vol_pct):,.0f}%" if not pd.isna(vol_pct) else '')
-            vol_pct_item.setData(float(vol_pct) if not pd.isna(vol_pct) else 0.0, self.sort_role)
-            items.append(vol_pct_item)
+            # Price range (high - low) - absolute value with commas
+            range_val = row.get('priceRange', np.nan)
+            range_item = QtGui.QStandardItem(f"{float(range_val):,.0f}" if not pd.isna(range_val) else '')
+            range_item.setData(float(range_val) if not pd.isna(range_val) else 0.0, self.sort_role)
+            items.append(range_item)
+            # Price range as percentage of current price
+            range_pct = row.get('priceRangePct', np.nan) if 'priceRangePct' in row else np.nan
+            range_pct_item = QtGui.QStandardItem(f"{float(range_pct):,.0f}%" if not pd.isna(range_pct) else '')
+            range_pct_item.setData(float(range_pct) if not pd.isna(range_pct) else 0.0, self.sort_role)
+            items.append(range_pct_item)
             # Store itemKey in user role for proper item identification when clicking (on ma% column, index 4)
             items[4].setData(row.get('itemKey', ''), QtCore.Qt.UserRole)
             self.model_.appendRow(items)
-        # Set column widths: numeric columns (price, ma, ma%, vol, vol%) at 85% of content size
+        # Set column widths: numeric columns (price, ma, ma%, range, range%) at 85% of content size
         # Text columns (item, category) share remaining space
         header = self.horizontalHeader()
-        # Column indices: item=0, category=1, price=2, ma=3, ma%=4, vol=5, vol%=6
-        numeric_cols = [2, 3, 4, 5, 6]  # price, ma, ma%, vol, vol%
+        # Column indices: item=0, category=1, price=2, ma=3, ma%=4, range=5, range%=6
+        numeric_cols = [2, 3, 4, 5, 6]  # price, ma, ma%, range, range%
         text_cols = [0, 1]  # item, category
         
         # First, set all columns to resize to contents to calculate natural widths
@@ -676,6 +676,8 @@ class DataTable(QtWidgets.QTableView):
         # Default sort: biggest gainers at the top (by numeric sort role on ma% column)
         try:
             self.model_.sort(4, QtCore.Qt.SortOrder.DescendingOrder)
+            # Update header to show the sort indicator
+            header.setSortIndicator(4, QtCore.Qt.SortOrder.DescendingOrder)
         except Exception:
             pass
 
@@ -1014,7 +1016,8 @@ class MainWindow(QtWidgets.QMainWindow):
         sort_column = header.sortIndicatorSection()
         sort_order = header.sortIndicatorOrder()
         # Default to column 4 (ma%) descending if no sort is set
-        if sort_column < 0:
+        # Also default to ma% if sort is on item column (0) - user likely hasn't sorted yet
+        if sort_column < 0 or sort_column == 0:
             sort_column = 4
             sort_order = QtCore.Qt.SortOrder.DescendingOrder
 

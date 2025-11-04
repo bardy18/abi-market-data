@@ -292,6 +292,16 @@ def add_indicators(df: pd.DataFrame, ma_window: int = 5) -> pd.DataFrame:
     mask = df['ma'] > 0
     df['volPct'] = 0.0
     df.loc[mask, 'volPct'] = (df.loc[mask, 'vol'] / df.loc[mask, 'ma']) * 100.0
+    
+    # Price range: highest and lowest prices across all historical data
+    df['priceHigh'] = df.groupby('itemKey')['price'].transform('max')
+    df['priceLow'] = df.groupby('itemKey')['price'].transform('min')
+    df['priceRange'] = df['priceHigh'] - df['priceLow']
+    # Price range as percentage of current price (for relative comparison)
+    mask_range = df['price'] > 0
+    df['priceRangePct'] = 0.0
+    df.loc[mask_range, 'priceRangePct'] = (df.loc[mask_range, 'priceRange'] / df.loc[mask_range, 'price']) * 100.0
+    
     return df
 
 
