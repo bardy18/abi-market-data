@@ -252,6 +252,178 @@ def load_config(path: str) -> TradingAppConfig:
 
 # Snapshot loading and analysis
 
+def load_s3_config() -> Optional[Dict[str, Any]]:
+    """Load S3 configuration with priority: env vars > config file > embedded defaults."""
+    import os
+    from pathlib import Path
+    
+    # Try environment variables first (for development/testing)
+    bucket = os.getenv('S3_BUCKET_NAME')
+    if bucket:
+        config = {
+            'bucket': bucket,
+            'region': os.getenv('AWS_REGION', 'us-east-1'),
+            'key_prefix': os.getenv('S3_KEY_PREFIX', 'snapshots/'),
+            'use_s3': True,
+        }
+        # Add credentials if provided via env
+        access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        if access_key and secret_key:
+            config['access_key'] = access_key
+            config['secret_key'] = secret_key
+        return config
+    
+    # Try config file (for users who want to override embedded credentials)
+    config_path = Path(__file__).parent.parent / 's3_config.json'
+    if config_path.exists():
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                config['use_s3'] = True
+                config.setdefault('key_prefix', 'snapshots/')
+                return config
+        except Exception:
+            pass
+    
+    # Try embedded default credentials (for distributed executable)
+    try:
+        from trading_app import s3_config
+        embedded_config = s3_config.get_default_s3_config()
+        if embedded_config:
+            return embedded_config
+    except Exception:
+        pass
+    
+    return None
+
+
+def list_s3_snapshots(s3_config: Dict[str, Any], limit: Optional[int] = None) -> List[str]:
+    """List snapshot files from S3, sorted by modification time (newest first)."""
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+        
+        # Create S3 client - works without credentials for public buckets
+        region = s3_config.get('region', 'us-east-1')
+        access_key = s3_config.get('access_key')
+        secret_key = s3_config.get('secret_key')
+        
+        if access_key and secret_key:
+            s3_client = boto3.client(
+                's3',
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
+        else:
+            # Try without credentials (for public buckets)
+            s3_client = boto3.client('s3', region_name=region)
+        
+        bucket = s3_config['bucket']
+        prefix = s3_config.get('key_prefix', 'snapshots/')
+        
+        # List objects with prefix
+        paginator = s3_client.get_paginator('list_objects_v2')
+        files = []
+        
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            if 'Contents' in page:
+                for obj in page['Contents']:
+                    key = obj['Key']
+                    if key.lower().endswith('.json'):
+                        # Extract filename
+                        filename = os.path.basename(key)
+                        files.append((filename, obj['LastModified'].timestamp()))
+        
+        # Sort by modification time, newest first
+        files.sort(key=lambda x: x[1], reverse=True)
+        
+        # Apply limit
+        if limit and limit > 0:
+            files = files[:limit]
+        
+        return [f[0] for f in files]
+    except Exception as e:
+        print(f"[!] Error listing S3 snapshots: {e}")
+        return []
+
+
+def download_snapshot_from_s3(s3_config: Dict[str, Any], filename: str, local_path: str) -> bool:
+    """Download a snapshot file from S3 to local path."""
+    try:
+        import boto3
+        from pathlib import Path
+        
+        # Create S3 client - works without credentials for public buckets
+        region = s3_config.get('region', 'us-east-1')
+        access_key = s3_config.get('access_key')
+        secret_key = s3_config.get('secret_key')
+        
+        if access_key and secret_key:
+            s3_client = boto3.client(
+                's3',
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
+        else:
+            # Try without credentials (for public buckets)
+            s3_client = boto3.client('s3', region_name=region)
+        
+        bucket = s3_config['bucket']
+        prefix = s3_config.get('key_prefix', 'snapshots/')
+        s3_key = f"{prefix}{filename}"
+        
+        # Ensure local directory exists
+        Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+        
+        # Download file
+        s3_client.download_file(bucket, s3_key, local_path)
+        return True
+    except Exception as e:
+        print(f"[!] Error downloading {filename} from S3: {e}")
+        return False
+
+
+def download_thumbnail_from_s3(s3_config: Dict[str, Any], thumb_hash: str, local_path: str) -> bool:
+    """Download a thumbnail image from S3 to local path."""
+    try:
+        import boto3
+        from pathlib import Path
+        
+        # Create S3 client - works without credentials for public buckets
+        region = s3_config.get('region', 'us-east-1')
+        access_key = s3_config.get('access_key')
+        secret_key = s3_config.get('secret_key')
+        
+        if access_key and secret_key:
+            s3_client = boto3.client(
+                's3',
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
+        else:
+            # Try without credentials (for public buckets)
+            s3_client = boto3.client('s3', region_name=region)
+        
+        bucket = s3_config['bucket']
+        prefix = s3_config.get('key_prefix', 'snapshots/')
+        # Thumbnail path in S3: snapshots/thumbs/<hash>.png
+        s3_key = f"{prefix}thumbs/{thumb_hash}.png"
+        
+        # Ensure local directory exists
+        Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+        
+        # Download file
+        s3_client.download_file(bucket, s3_key, local_path)
+        return True
+    except Exception as e:
+        # Silently fail - thumbnail might not exist for this item
+        return False
+
+
 def list_local_snapshots(path: str, limit: Optional[int] = None) -> List[str]:
     """List snapshot files, sorted by modification time (newest first), optionally limited."""
     if not os.path.isdir(path):
@@ -277,12 +449,45 @@ def load_snapshot_file(path: str) -> Optional[Dict[str, Any]]:
 
 
 def load_all_snapshots(local_path: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Load snapshots, optionally limited to most recent N files."""
+    """Load snapshots from S3 (if configured) and local files, optionally limited to most recent N files."""
     result: List[Dict[str, Any]] = []
-    for fp in list_local_snapshots(local_path, limit=limit):
+    
+    # Try S3 first if configured
+    s3_config = load_s3_config()
+    if s3_config and s3_config.get('use_s3'):
+        try:
+            s3_files = list_s3_snapshots(s3_config, limit=limit * 2 if limit else None)  # Get more to account for local overlap
+            local_cache_dir = os.path.join(local_path, '.s3_cache')
+            os.makedirs(local_cache_dir, exist_ok=True)
+            
+            for filename in s3_files:
+                cache_path = os.path.join(local_cache_dir, filename)
+                # Download if not cached or cache is stale
+                if not os.path.exists(cache_path):
+                    download_snapshot_from_s3(s3_config, filename, cache_path)
+                
+                # Load from cache
+                snap = load_snapshot_file(cache_path)
+                if snap and isinstance(snap.get('categories', {}), dict):
+                    result.append(snap)
+        except Exception as e:
+            print(f"[!] S3 download failed, falling back to local: {e}")
+    
+    # Also load local snapshots (may overlap with S3, but that's fine - we'll deduplicate)
+    local_files = list_local_snapshots(local_path, limit=limit)
+    for fp in local_files:
         snap = load_snapshot_file(fp)
         if snap and isinstance(snap.get('categories', {}), dict):
-            result.append(snap)
+            # Check if we already have this snapshot (by timestamp)
+            timestamp = snap.get('timestamp')
+            if not any(r.get('timestamp') == timestamp for r in result):
+                result.append(snap)
+    
+    # Sort by timestamp, newest first, and apply limit
+    result.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+    if limit and limit > 0:
+        result = result[:limit]
+    
     return result
 
 

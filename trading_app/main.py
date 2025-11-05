@@ -1197,6 +1197,13 @@ class MainWindow(QtWidgets.QMainWindow):
                         seen = set()
                         cand = [x for x in cand if not (x in seen or seen.add(x))]
                         found_path = ''
+                        thumb_hash = None
+                        # Get thumbHash from the dataframe for S3 download if needed
+                        if 'thumbHash' in dfi.columns:
+                            thumb_hash_values = dfi['thumbHash'].dropna().unique()
+                            if len(thumb_hash_values) > 0:
+                                thumb_hash = str(thumb_hash_values[0])
+                        
                         for thumb_rel in reversed(cand):
                             # Try absolute first
                             thumb_abs = thumb_rel
@@ -1211,6 +1218,18 @@ class MainWindow(QtWidgets.QMainWindow):
                             if os.path.exists(thumb_abs):
                                 found_path = thumb_abs
                                 break
+                        
+                        # If not found locally, try downloading from S3
+                        if not found_path and thumb_hash:
+                            s3_config = utils.load_s3_config()
+                            if s3_config and s3_config.get('use_s3'):
+                                # Build local path for thumbnail
+                                thumb_local_path = os.path.normpath(os.path.join(self.cfg.snapshots_path, 'thumbs', f"{thumb_hash}.png"))
+                                # Try to download from S3
+                                if utils.download_thumbnail_from_s3(s3_config, thumb_hash, thumb_local_path):
+                                    if os.path.exists(thumb_local_path):
+                                        found_path = thumb_local_path
+                        
                         if found_path:
                             pix = QtGui.QPixmap(found_path)
                             if not pix.isNull():

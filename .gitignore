@@ -7,9 +7,10 @@ __pycache__/
 env/
 venv/
 ENV/
+# PyInstaller temporary build directory
 build/
-develop-eggs/
 dist/
+develop-eggs/
 downloads/
 eggs/
 .eggs/
@@ -34,6 +35,7 @@ wheels/
 # Project specific
 debug_*/
 !README_images/*.png
+s3_config.json
 
 # Logs
 *.log

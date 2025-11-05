@@ -130,6 +130,45 @@ If you notice a wrong price in the logs:
 
 This saves you from manually editing the JSON file later!
 
+## Distribution & Sharing
+
+### S3 Integration
+
+The platform supports centralized data sharing via AWS S3:
+
+- **Upload Snapshots**: Use `scripts/upload_snapshots.bat` to sync snapshots to S3 using AWS CLI
+- **Download from S3**: The trading app automatically downloads snapshots from S3 (credentials embedded in executable)
+- **Private Bucket**: Uses IAM credentials for secure access
+
+The build script (`packaging/build_package.py`) handles embedding S3 credentials and creating the distributable package.
+
+### Packaging for Distribution
+
+Build a standalone executable package:
+
+```bash
+scripts\build_package.bat
+```
+
+Or manually:
+```bash
+python packaging/build_package.py
+```
+
+This creates a distributable package with:
+- Standalone executable (no Python installation needed)
+- Empty `trades.json` and `blacklist.json` for user-specific data
+- Automatic S3 snapshot and thumbnail downloads
+
+### Website
+
+A professional website is included in the `website/` folder for:
+- Downloading the trading platform
+- Community engagement
+- Messaging to game developers
+
+See `website/README.md` for deployment instructions.
+
 ## Project Structure
 
 ```
@@ -141,6 +180,7 @@ ABIMarketData/
 ├── trading_app/               # GUI application
 │   ├── main.py                # GUI interface
 │   ├── utils.py               # Data processing utilities
+│   ├── s3_config.py           # S3 configuration (credentials embedded at build time)
 │   └── config.yaml            # App settings
 ├── mappings/                  # Item name mappings
 │   ├── ocr_mappings.json      # OCR name → Display name
@@ -148,9 +188,21 @@ ABIMarketData/
 ├── scripts/                     # Launcher scripts
 │   ├── capture_market_data.bat  # Windows launcher for collector
 │   ├── view_market_data.bat     # Windows launcher for GUI
+│   ├── upload_snapshots.bat     # S3 sync script
+│   └── build_package.bat        # Package builder launcher
 ├── snapshots/                   # Market data snapshots
 │   ├── YYYY-MM-DD_HH-MM.json    # Snapshot files
 │   └── thumbs/                  # Thumbnail images used by the GUI
+├── website/                     # Official website
+│   ├── index.html             # Main website page
+│   ├── styles.css             # Styling
+│   ├── script.js              # Interactive features
+│   ├── images/                # Website images
+│   │   └── app-screenshot.png # Application screenshot
+│   └── README.md              # Website deployment guide
+├── packaging/                  # Build and deployment files
+│   ├── build_package.py       # Package builder (creates standalone executable)
+│   └── s3_config.json.example # Template for S3 credentials (copy to s3_config.json)
 ├── requirements.txt           # Python dependencies
 └── README.md                  # This file
 ```
@@ -193,7 +245,7 @@ snapshots/
   ...
 ```
 
-The Trading App loads ALL snapshots automatically for historical analysis. Each item includes a `thumbHash`; the thumbnail image is saved at `snapshots/thumbs/<thumbHash>.png` and is displayed in the GUI.
+The Trading App loads ALL snapshots automatically for historical analysis. Each item includes a `thumbHash`; the thumbnail image is saved at `snapshots/thumbs/<thumbHash>.png` and is displayed in the GUI. Thumbnails are automatically downloaded from S3 if not found locally.
 
 ## Configuration
 
@@ -311,6 +363,26 @@ After your first few snapshots, you'll be able to:
 
 Happy trading! 🚀
 
+## Distribution Features
+
+### Cloud Data Sharing
+
+- **Centralized Snapshots**: Upload snapshots and thumbnails to S3 for community access
+- **Automatic Downloads**: Trading app downloads snapshots and thumbnails from S3 automatically
+- **Private Bucket**: Uses IAM credentials embedded in executable for secure access
+
+### Standalone Package
+
+- **No Installation Required**: PyInstaller creates a standalone executable
+- **User-Specific Data**: Each user gets their own `trades.json` and `blacklist.json`
+- **Easy Distribution**: Package as ZIP for download
+
+### Official Website
+
+- **Professional Design**: Modern, gaming-themed website
+- **Dual Audience**: For traders and game developers
+- **Clear Messaging**: Emphasizes policy compliance and community spirit
+
 ## Contributing
 
 Contributions welcome! Areas for improvement:
@@ -318,6 +390,8 @@ Contributions welcome! Areas for improvement:
 - Additional trading metrics
 - Enhanced UI features
 - OCR accuracy improvements
+- Website enhancements
+- S3 integration improvements
 
 ## License
 
