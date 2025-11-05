@@ -1165,8 +1165,8 @@ class MainWindow(QtWidgets.QMainWindow):
             spike_pct=float(self.cfg.alerts.get('spike_threshold_pct', 20.0)),
             drop_pct=float(self.cfg.alerts.get('drop_threshold_pct', 20.0)),
         )
-        # Sort: biggest gainers at top, biggest losers at bottom
-        alerts.sort(key=lambda a: a.get('delta', 0.0), reverse=True)
+        # Sort: biggest losers at top, biggest gainers at bottom
+        alerts.sort(key=lambda a: a.get('delta', 0.0), reverse=False)
         for a in alerts:
             raw_text = a.get('text', '')
             # Remove any leading emoji from utils, keep plain text
