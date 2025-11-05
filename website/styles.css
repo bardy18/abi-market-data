@@ -479,6 +479,18 @@ header h1 {
     transform: translateY(-2px);
 }
 
+/* Signature Email Link */
+.signature a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.signature a:hover {
+    color: var(--secondary-color);
+    text-decoration: underline;
+}
+
 /* Footer */
 footer {
     background: var(--bg-darker);
