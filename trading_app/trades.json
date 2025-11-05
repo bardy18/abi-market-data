@@ -3,22 +3,36 @@
     "itemKey": "Collectibles:Handmade Hunting ...#0301000c3c0000000b03111971290101166e5d",
     "quantity": 2,
     "expense": 27004.0,
-    "status": "1 - Purchased",
+    "status": "2 - In Transit",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Electronics:Mobile Phone#01001818181800000303317131310101984e29",
+    "quantity": 5,
+    "expense": 49658.0,
+    "status": "2 - In Transit",
     "income": 0.0
   },
   {
     "itemKey": "Electronics:Shutter Cable#03010018181800000b03112121210101924014",
     "quantity": 5,
     "expense": 33109.0,
-    "status": "1 - Purchased",
+    "status": "2 - In Transit",
     "income": 0.0
   },
   {
     "itemKey": "Miscellaneous Military Item:Safety Cord#0101003c3c00000003030179610101011c8988",
     "quantity": 5,
     "expense": 28059.0,
-    "status": "1 - Purchased",
+    "status": "2 - In Transit",
     "income": 0
+  },
+  {
+    "itemKey": "Miscellaneous Military Item:Weapon Parts#0301001c3c0000000303013d7121010140471e",
+    "quantity": 5,
+    "expense": 54053.0,
+    "status": "2 - In Transit",
+    "income": 0.0
   },
   {
     "itemKey": "Building Materials:Wood Board#0100003e7e38000003030d79f94101011663bc",
@@ -56,27 +70,6 @@
     "income": 0.0
   },
   {
-    "itemKey": "Computer Parts:CPU Fan#0301003c3c0000000303117161310105945224",
-    "quantity": 5,
-    "expense": 19171.0,
-    "status": "4 - For Sale",
-    "income": 0.0
-  },
-  {
-    "itemKey": "Electronics:Security Camera#0101003c3c000000030301715941010129494c",
-    "quantity": 3,
-    "expense": 22344.0,
-    "status": "4 - For Sale",
-    "income": 0.0
-  },
-  {
-    "itemKey": "Tools:MP Tools#030104183810000047030931313101010782a3",
-    "quantity": 5,
-    "expense": 34108.0,
-    "status": "4 - For Sale",
-    "income": 0.0
-  },
-  {
     "itemKey": "Building Materials:Bulletproof Gel#01191818181818001313313131317101136751",
     "quantity": 5,
     "expense": 69529.0,
@@ -89,6 +82,20 @@
     "expense": 5359.0,
     "status": "5 - Sold",
     "income": 6512.0
+  },
+  {
+    "itemKey": "Computer Parts:CPU Fan#0301003c3c0000000303117161310105945224",
+    "quantity": 5,
+    "expense": 19171.0,
+    "status": "5 - Sold",
+    "income": 34295.0
+  },
+  {
+    "itemKey": "Electronics:Security Camera#0101003c3c000000030301715941010129494c",
+    "quantity": 3,
+    "expense": 22344.0,
+    "status": "5 - Sold",
+    "income": 38430.0
   },
   {
     "itemKey": "Energy Items:Phone Battery#0100083c3c3800000303797979790105560c1b",
@@ -166,5 +173,12 @@
     "expense": 24828.0,
     "status": "5 - Sold",
     "income": 46695.0
+  },
+  {
+    "itemKey": "Tools:MP Tools#030104183810000047030931313101010782a3",
+    "quantity": 5,
+    "expense": 34108.0,
+    "status": "5 - Sold",
+    "income": 40021.0
   }
 ]
