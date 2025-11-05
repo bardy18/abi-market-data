@@ -742,9 +742,9 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.addWidget(self.alerts_list)
 
         # My Watchlist
-        self.watchlist_list = QtWidgets.QListWidget(self)
-        left_layout.addWidget(QtWidgets.QLabel('My Watchlist'))
-        left_layout.addWidget(self.watchlist_list)
+        self.trades_list = QtWidgets.QListWidget(self)
+        left_layout.addWidget(QtWidgets.QLabel('My Trades'))
+        left_layout.addWidget(self.trades_list)
 
         # Right: Chart + Table + Thumbnail (thumbnail to the right of chart)
         right = QtWidgets.QWidget(self)
@@ -760,22 +760,22 @@ class MainWindow(QtWidgets.QMainWindow):
         thumb_layout.setContentsMargins(0, 0, 0, 0)
         thumb_layout.setSpacing(4)
         
-        # Button row for watchlist and blacklist
+        # Button row for buy and blacklist
         button_row = QtWidgets.QWidget(self)
         button_row_layout = QtWidgets.QHBoxLayout(button_row)
         button_row_layout.setContentsMargins(0, 0, 0, 0)
         button_row_layout.setSpacing(4)
         
-        # Star button for watchlist
-        self.watchlist_btn = QtWidgets.QPushButton(self)
-        self.watchlist_btn.setText('☆')
-        self.watchlist_btn.setFixedSize(30, 30)
-        self.watchlist_btn.setStyleSheet('''
+        # Buy button
+        self.buy_btn = QtWidgets.QPushButton(self)
+        self.buy_btn.setText('Buy')
+        self.buy_btn.setFixedSize(46, 30)
+        self.buy_btn.setStyleSheet('''
             QPushButton {
                 background-color: #1a1a1a;
                 border: 1px solid #333333;
                 border-radius: 4px;
-                font-size: 16px;
+                font-size: 14px;
                 color: #888888;
             }
             QPushButton:hover {
@@ -810,7 +810,7 @@ class MainWindow(QtWidgets.QMainWindow):
             }
         ''')
         
-        button_row_layout.addWidget(self.watchlist_btn)
+        button_row_layout.addWidget(self.buy_btn)
         button_row_layout.addWidget(self.blacklist_btn)
         button_row_layout.addStretch()
         
@@ -849,17 +849,20 @@ class MainWindow(QtWidgets.QMainWindow):
         # Note: selectionModel is available after model is set in DataTable
         self.table.selectionModel().currentChanged.connect(self._on_table_current_changed)
         self.alerts_list.itemClicked.connect(self._on_alert_clicked)
-        self.watchlist_list.itemClicked.connect(self._on_watchlist_clicked)
-        self.watchlist_btn.clicked.connect(self._on_watchlist_btn_clicked)
+        self.trades_list.itemClicked.connect(self._on_trade_widget_clicked)
+        self.buy_btn.clicked.connect(self._on_buy_btn_clicked)
         self.blacklist_btn.clicked.connect(self._on_blacklist_btn_clicked)
 
         # Track current selected itemKey for button states
         self._current_item_key = None
 
+        # Right trading panel (Active / Completed)
+        self._build_trading_panel(main_layout)
         # Initial load
         self.refresh_view()
         self._update_alerts()
-        self._update_watchlist()
+        self._update_trades_widget()
+        self._refresh_trade_panels()
         # Initialize blacklist button state
         self._update_blacklist_button_state()
 
@@ -1091,7 +1094,7 @@ class MainWindow(QtWidgets.QMainWindow):
             
             # Store current item key for button states
             self._current_item_key = item_key
-            self._update_watchlist_button_state()
+            self._update_buy_button_state()
             self._update_blacklist_button_state()
             
             df_full = self._filtered_df()
@@ -1153,6 +1156,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.thumb_label.setText('')
             except Exception:
                 self.thumb_label.setText('')
+            # Update trade panels to reflect newly selected item
+            self._refresh_trade_panels()
 
     def _on_table_current_changed(self, current: QtCore.QModelIndex, prev: QtCore.QModelIndex) -> None:
         # Mirror click handling for keyboard selection changes
@@ -1187,10 +1192,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 item.setForeground(QtGui.QBrush(color))
             self.alerts_list.addItem(item)
 
-    def _update_watchlist(self) -> None:
-        self.watchlist_list.clear()
-        watchlist_items = utils.find_watchlist_items(self.df_all)
-        for w in watchlist_items:
+    def _update_trades_widget(self) -> None:
+        self.trades_list.clear()
+        trade_items = utils.find_trades_items(self.df_all)
+        for w in trade_items:
             item = QtWidgets.QListWidgetItem(w.get('text', ''))
             # Store itemKey and category for click handling
             item.setData(QtCore.Qt.UserRole, w.get('itemKey', ''))
@@ -1205,20 +1210,19 @@ class MainWindow(QtWidgets.QMainWindow):
                     item.setIcon(icon)
                 # Color the text to match the icon
                 item.setForeground(QtGui.QBrush(color))
-            self.watchlist_list.addItem(item)
+            self.trades_list.addItem(item)
     
-    def _update_watchlist_button_state(self) -> None:
-        """Update the watchlist button to show star or filled star based on current item."""
+    def _update_buy_button_state(self) -> None:
+        """Enable/disable Buy button based on selection and blacklist state."""
         if not self._current_item_key:
-            self.watchlist_btn.setText('☆')
-            self.watchlist_btn.setEnabled(False)
+            self.buy_btn.setEnabled(False)
             # Reset to default gray styling
-            self.watchlist_btn.setStyleSheet('''
+            self.buy_btn.setStyleSheet('''
                 QPushButton {
                     background-color: #1a1a1a;
                     border: 1px solid #333333;
                     border-radius: 4px;
-                    font-size: 16px;
+                    font-size: 14px;
                     color: #888888;
                 }
                 QPushButton:hover {
@@ -1231,47 +1235,24 @@ class MainWindow(QtWidgets.QMainWindow):
                 }
             ''')
         else:
-            self.watchlist_btn.setEnabled(True)
-            if utils.is_in_watchlist(self._current_item_key):
-                self.watchlist_btn.setText('★')
-                # Neon green for activated state
-                self.watchlist_btn.setStyleSheet('''
-                    QPushButton {
-                        background-color: #1a1a1a;
-                        border: 1px solid #333333;
-                        border-radius: 4px;
-                        font-size: 16px;
-                        color: #00ff88;
-                    }
-                    QPushButton:hover {
-                        background-color: #2a2a2a;
-                        border-color: #555555;
-                        color: #00ff88;
-                    }
-                    QPushButton:pressed {
-                        background-color: #0a0a0a;
-                    }
-                ''')
-            else:
-                self.watchlist_btn.setText('☆')
-                # Reset to default gray styling
-                self.watchlist_btn.setStyleSheet('''
-                    QPushButton {
-                        background-color: #1a1a1a;
-                        border: 1px solid #333333;
-                        border-radius: 4px;
-                        font-size: 16px;
-                        color: #888888;
-                    }
-                    QPushButton:hover {
-                        background-color: #2a2a2a;
-                        border-color: #555555;
-                        color: #c0c0c0;
-                    }
-                    QPushButton:pressed {
-                        background-color: #0a0a0a;
-                    }
-                ''')
+            self.buy_btn.setEnabled(True)
+            self.buy_btn.setStyleSheet('''
+                QPushButton {
+                    background-color: #1a1a1a;
+                    border: 1px solid #333333;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    color: #00ff88;
+                }
+                QPushButton:hover {
+                    background-color: #2a2a2a;
+                    border-color: #555555;
+                    color: #00ff88;
+                }
+                QPushButton:pressed {
+                    background-color: #0a0a0a;
+                }
+            ''')
     
     def _update_blacklist_button_state(self) -> None:
         """Update the blacklist button to show active state based on current item."""
@@ -1347,26 +1328,30 @@ class MainWindow(QtWidgets.QMainWindow):
             utils.remove_from_blacklist(self._current_item_key)
         else:
             utils.add_to_blacklist(self._current_item_key)
-            # Remove from watchlist if it's there (can't watch blacklisted items)
-            if utils.is_in_watchlist(self._current_item_key):
-                utils.remove_from_watchlist(self._current_item_key)
         self._update_blacklist_button_state()
-        self._update_watchlist_button_state()  # Update watchlist button state too
+        self._update_buy_button_state()
         # Refresh view to hide/show the item and update widgets
         self.refresh_view()
         self._update_alerts()  # Update Top Movers
-        self._update_watchlist()  # Update My Watchlist
-    
-    def _on_watchlist_btn_clicked(self) -> None:
-        """Toggle current item in watchlist."""
+        self._update_trades_widget()  # Update My Trades
+        self._refresh_trade_panels()
+
+    def _on_buy_btn_clicked(self) -> None:
+        """Prompt for quantity and expense to add a trade for current item."""
         if not self._current_item_key:
             return
-        if utils.is_in_watchlist(self._current_item_key):
-            utils.remove_from_watchlist(self._current_item_key)
-        else:
-            utils.add_to_watchlist(self._current_item_key)
-        self._update_watchlist_button_state()
-        self._update_watchlist()
+        qty, expense, ok = self._prompt_buy_details()
+        if not ok:
+            return
+        # Derive display name
+        display_name = ''
+        try:
+            display_name = self.table.model_.item(self.table.currentIndex().row(), 0).text()
+        except Exception:
+            display_name = self._current_item_key
+        utils.add_trade(self._current_item_key, display_name, qty, expense)
+        self._update_trades_widget()
+        self._refresh_trade_panels()
 
     def _on_alert_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
         # Select the corresponding row in the table and update chart/thumbnail
@@ -1424,9 +1409,226 @@ class MainWindow(QtWidgets.QMainWindow):
         if target_idx is not None:
             self._on_table_clicked(target_idx)
 
-    def _on_watchlist_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
-        # Reuse the same behavior as alert click for watchlist items
+    def _on_trade_widget_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
+        # Reuse the same behavior as alert click for trade items
         self._on_alert_clicked(item)
+
+    def _prompt_buy_details(self) -> tuple[int, float, bool]:
+        """Show a single dialog to capture Quantity and Total Expense.
+        Returns (quantity, expense, ok)."""
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle('Buy')
+        layout = QtWidgets.QFormLayout(dlg)
+        qty_edit = QtWidgets.QLineEdit(dlg)
+        qty_edit.setPlaceholderText('e.g. 5')
+        qty_edit.setText('1')
+        expense_edit = QtWidgets.QLineEdit(dlg)
+        expense_edit.setPlaceholderText('e.g. 12345')
+        btns = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel, parent=dlg)
+        layout.addRow('Quantity', qty_edit)
+        layout.addRow('Total expense', expense_edit)
+        layout.addRow(btns)
+        def accept() -> None:
+            dlg.accept()
+        def reject() -> None:
+            dlg.reject()
+        btns.accepted.connect(accept)
+        btns.rejected.connect(reject)
+        ok = dlg.exec() == QtWidgets.QDialog.Accepted
+        if not ok:
+            return 0, 0.0, False
+        try:
+            qty = int(str(qty_edit.text()).replace(',', '').strip())
+        except ValueError:
+            qty = 0
+        try:
+            expense = float(str(expense_edit.text()).replace(',', '').strip())
+        except ValueError:
+            expense = 0.0
+        if qty <= 0:
+            return 0, 0.0, False
+        return qty, expense, True
+
+    def _build_trading_panel(self, main_layout: QtWidgets.QHBoxLayout) -> None:
+        # Right column: Active Trades (top) and Completed Trades (bottom)
+        panel = QtWidgets.QWidget(self)
+        panel_layout = QtWidgets.QVBoxLayout(panel)
+        panel_layout.setContentsMargins(6, 0, 0, 0)
+        panel_layout.setSpacing(8)
+
+        panel_layout.addWidget(QtWidgets.QLabel('Active Trades'))
+        self.active_scroll = QtWidgets.QScrollArea(self)
+        self.active_scroll.setWidgetResizable(True)
+        self.active_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.active_scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.active_content = QtWidgets.QWidget(self)
+        self.active_layout = QtWidgets.QVBoxLayout(self.active_content)
+        self.active_layout.setContentsMargins(0, 0, 0, 0)
+        self.active_layout.setSpacing(6)
+        self.active_layout.addStretch(1)
+        self.active_scroll.setWidget(self.active_content)
+        self.active_scroll.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
+        panel_layout.addWidget(self.active_scroll, 1)
+
+        panel_layout.addWidget(QtWidgets.QLabel('Completed Trades'))
+        self.completed_scroll = QtWidgets.QScrollArea(self)
+        self.completed_scroll.setWidgetResizable(True)
+        self.completed_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.completed_scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.completed_content = QtWidgets.QWidget(self)
+        self.completed_layout = QtWidgets.QVBoxLayout(self.completed_content)
+        self.completed_layout.setContentsMargins(0, 0, 0, 0)
+        self.completed_layout.setSpacing(6)
+        self.completed_layout.addStretch(1)
+        self.completed_scroll.setWidget(self.completed_content)
+        self.completed_scroll.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
+        panel_layout.addWidget(self.completed_scroll, 1)
+
+        main_layout.addWidget(panel, 1)
+
+    def _make_trade_card(self, trade: dict, completed: bool = False) -> QtWidgets.QWidget:
+        card = QtWidgets.QFrame(self)
+        card.setFrameShape(QtWidgets.QFrame.NoFrame)
+        card.setStyleSheet('QFrame { background-color: #0a0a0a; border: none; }')
+        v = QtWidgets.QVBoxLayout(card)
+        v.setContentsMargins(8, 8, 8, 8)
+        # Omit item display title on the card; context is the selected item
+        # Status dropdown as full-width first row (no label)
+        status_cb = QtWidgets.QComboBox(self)
+        for s in utils.TRADE_STATUSES:
+            status_cb.addItem(s)
+        curr = trade.get('status') or utils.TRADE_STATUSES[0]
+        status_cb.setCurrentText(curr)
+        status_cb.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
+        v.addWidget(status_cb)
+
+        # Rows container without borders
+        rows_container = QtWidgets.QVBoxLayout()
+        rows_container.setContentsMargins(0, 4, 0, 0)
+        rows_container.setSpacing(4)
+
+        def make_row(label_text: str, value_text: str) -> None:
+            row_frame = QtWidgets.QFrame(self)
+            row_frame.setStyleSheet('QFrame { border: none; } QLabel { border: none; }')
+            h = QtWidgets.QHBoxLayout(row_frame)
+            h.setContentsMargins(0, 4, 0, 4)
+            h.setSpacing(6)
+            lab = QtWidgets.QLabel(label_text)
+            val = QtWidgets.QLabel(value_text)
+            lab.setStyleSheet('color: #888888;')
+            val.setStyleSheet('color: #c0c0c0;')
+            h.addWidget(lab, 0)
+            h.addStretch(1)
+            h.addWidget(val, 0)
+            rows_container.addWidget(row_frame)
+
+        qty = int(trade.get('quantity') or 0)
+        expense = float(trade.get('expense') or 0.0)
+        income = float(trade.get('income') or 0.0)
+        buy = (expense / qty) if qty else 0.0
+        sell = (income / qty) if qty else 0.0
+        profit = income - expense
+        roi_pct = ((profit / expense) * 100.0) if expense > 0 else 0.0
+
+        make_row('Qty', f"{qty}")
+        make_row('Expense', f"{expense:,.0f}")
+        if completed:
+            make_row('Income', f"{income:,.0f}")
+            make_row('Buy', f"{buy:,.0f}")
+            make_row('Sell', f"{sell:,.0f}")
+            make_row('ROI', f"{roi_pct:.0f}%")
+            make_row('Gross', f"{profit:,.0f}")
+        else:
+            # Active trade: include Buy row and Sell button as its own row
+            make_row('Buy', f"{buy:,.0f}")
+            sell_row = QtWidgets.QFrame(self)
+            sell_row.setStyleSheet('QFrame { border: none; }')
+            h2 = QtWidgets.QHBoxLayout(sell_row)
+            h2.setContentsMargins(0, 4, 0, 4)
+            h2.addStretch(1)
+            sell_btn = QtWidgets.QPushButton('Sell')
+            sell_btn.setFixedWidth(60)
+            sell_btn.setStyleSheet('''
+                QPushButton {
+                    background-color: #1a1a1a;
+                    border: 1px solid #333333;
+                    border-radius: 4px;
+                    color: #00ff88;
+                }
+                QPushButton:hover {
+                    background-color: #2a2a2a;
+                    border-color: #555555;
+                    color: #00ff88;
+                }
+                QPushButton:pressed {
+                    background-color: #0a0a0a;
+                }
+            ''')
+            h2.addWidget(sell_btn, 0)
+            rows_container.addWidget(sell_row)
+            def on_sell() -> None:
+                income_text, ok = QtWidgets.QInputDialog.getText(self, 'Sell', 'Total income:')
+                if not ok:
+                    return
+                try:
+                    income = float(str(income_text).replace(',', '').strip())
+                except ValueError:
+                    income = 0.0
+                utils.update_trade(trade.get('itemKey'), {'income': income, 'status': '5 - Sold'})
+                self._refresh_trade_panels()
+                self._update_trades_widget()
+            sell_btn.clicked.connect(on_sell)
+
+        v.addLayout(rows_container)
+
+        def on_status_changed() -> None:
+            new_status = status_cb.currentText()
+            utils.update_trade(trade.get('itemKey'), {'status': new_status})
+            self._refresh_trade_panels()
+            self._update_trades_widget()
+        status_cb.currentTextChanged.connect(lambda _: on_status_changed())
+        return card
+
+    def _refresh_trade_panels(self) -> None:
+        # Active trades
+        # Clear active layout (except final stretch)
+        while self.active_layout.count() > 1:
+            item = self.active_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        key = self._current_item_key or ''
+        active = [t for t in utils.list_active_trades() if key and t.get('itemKey') == key]
+        active.sort(key=lambda t: (utils._status_sort_key(t.get('status', '')), utils.get_display_name(t.get('itemKey',''))))
+        if not active:
+            # Show helpful empty state
+            msg = QtWidgets.QLabel('No active trades found...')
+            msg.setStyleSheet('color: #888888;')
+            msg.setAlignment(QtCore.Qt.AlignCenter)
+            self.active_layout.insertWidget(self.active_layout.count() - 1, msg)
+        else:
+            for t in active:
+                w = self._make_trade_card(t, completed=False)
+                w.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum)
+                self.active_layout.insertWidget(self.active_layout.count() - 1, w)
+        # Completed trades
+        while self.completed_layout.count() > 1:
+            item = self.completed_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        done = [t for t in utils.list_completed_trades() if key and t.get('itemKey') == key]
+        done.sort(key=lambda t: (utils._status_sort_key(t.get('status', '')), utils.get_display_name(t.get('itemKey',''))))
+        if not done:
+            msg = QtWidgets.QLabel('No completed trades found...')
+            msg.setStyleSheet('color: #888888;')
+            msg.setAlignment(QtCore.Qt.AlignCenter)
+            self.completed_layout.insertWidget(self.completed_layout.count() - 1, msg)
+        else:
+            for t in done:
+                w = self._make_trade_card(t, completed=True)
+                w.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum)
+                self.completed_layout.insertWidget(self.completed_layout.count() - 1, w)
 
     def _make_alert_icon(self, color: QtGui.QColor, direction: str = 'up') -> QtGui.QIcon:
         # Create a small triangle icon with the given color and orientation

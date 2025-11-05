@@ -12,8 +12,9 @@ import numpy as np
 
 # Display name mapping cache
 _display_mapping = None
-# Watchlist cache
-_watchlist_data = None
+# Watchlist removed; trades replace it
+# Trades cache
+_trades_data: Optional[List[Dict[str, Any]]] = None
 # Blacklist cache
 _blacklist_data = None
 
@@ -36,64 +37,111 @@ def _display_mappings_path() -> Path:
     return Path(__file__).parent.parent / 'mappings' / 'display_mappings.json'
 
 
-def _watchlist_path() -> Path:
-    """Get the path to the watchlist.json file."""
-    return Path(__file__).parent / 'watchlist.json'
+def _trades_path() -> Path:
+    """Path to the trades.json file."""
+    return Path(__file__).parent / 'trades.json'
 
 
-def load_watchlist() -> List[str]:
-    """Load the watchlist from watchlist.json, returning list of itemKeys."""
-    global _watchlist_data
-    if _watchlist_data is None:
-        watchlist_file = _watchlist_path()
-        if watchlist_file.exists():
+# All watchlist helpers removed
+
+
+# Trades management
+
+TRADE_STATUSES = [
+    "1 - Purchased",
+    "2 - In Transit",
+    "3 - Stored",
+    "4 - For Sale",
+    "5 - Sold",
+    "6 - Lost",
+]
+
+
+def _status_sort_key(status: str) -> int:
+    try:
+        # expects leading number then ' - '
+        num = int(str(status).split('-', 1)[0].strip())
+        return num
+    except Exception:
+        return 999
+
+
+def load_trades() -> List[Dict[str, Any]]:
+    """Load trades from trades.json (list of trade dicts)."""
+    global _trades_data
+    if _trades_data is None:
+        fp = _trades_path()
+        if fp.exists():
             try:
-                with open(watchlist_file, 'r', encoding='utf-8') as f:
+                with open(fp, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    # Handle both old format (list) and new format (dict with items list)
-                    if isinstance(data, dict):
-                        _watchlist_data = data.get('items', [])
-                    else:
-                        _watchlist_data = data if isinstance(data, list) else []
+                    _trades_data = data if isinstance(data, list) else []
             except Exception:
-                _watchlist_data = []
+                _trades_data = []
         else:
-            _watchlist_data = []
-    return _watchlist_data.copy()
+            _trades_data = []
+    return [dict(t) for t in _trades_data]
 
 
-def save_watchlist(items: List[str]) -> None:
-    """Save the watchlist to watchlist.json."""
-    global _watchlist_data
-    watchlist_file = _watchlist_path()
-    watchlist_file.parent.mkdir(parents=True, exist_ok=True)
-    # Save as JSON with items list
-    data = {'items': items}
-    with open(watchlist_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    _watchlist_data = items.copy()
+def save_trades(trades: List[Dict[str, Any]]) -> None:
+    """Persist all trades to trades.json and update cache."""
+    global _trades_data
+    fp = _trades_path()
+    fp.parent.mkdir(parents=True, exist_ok=True)
+    # Normalize/sort for stable file ordering: by status then name
+    # Persist ONLY minimal fields; derived metrics are computed in the UI
+    keep_keys = {'itemKey', 'quantity', 'expense', 'income', 'status'}
+    norm: List[Dict[str, Any]] = []
+    for t in trades:
+        tc = {k: v for k, v in dict(t).items() if k in keep_keys}
+        tc.setdefault('status', TRADE_STATUSES[0])
+        tc.setdefault('quantity', 0)
+        tc.setdefault('expense', 0.0)
+        tc.setdefault('income', 0.0)
+        # itemKey required for identification/display
+        tc.setdefault('itemKey', '')
+        norm.append(tc)
+    norm.sort(key=lambda x: (_status_sort_key(x.get('status', '')), str(x.get('displayName') or x.get('itemKey') or '')))
+    with open(fp, 'w', encoding='utf-8') as f:
+        json.dump(norm, f, ensure_ascii=False, indent=2)
+    _trades_data = norm
 
 
-def add_to_watchlist(item_key: str) -> None:
-    """Add an item to the watchlist."""
-    items = load_watchlist()
-    if item_key not in items:
-        items.append(item_key)
-        save_watchlist(items)
+def add_trade(item_key: str, display_name: str, quantity: int, expense_total: float, status: str = TRADE_STATUSES[0]) -> Dict[str, Any]:
+    """Add a new trade and return it."""
+    trades = load_trades()
+    trade = {
+        'itemKey': item_key,
+        'quantity': int(quantity),
+        'expense': float(expense_total),
+        'status': status,
+        'income': 0.0,
+    }
+    trades.append(trade)
+    save_trades(trades)
+    return trade
 
 
-def remove_from_watchlist(item_key: str) -> None:
-    """Remove an item from the watchlist."""
-    items = load_watchlist()
-    if item_key in items:
-        items.remove(item_key)
-        save_watchlist(items)
+def update_trade(item_key: str, updates: Dict[str, Any]) -> None:
+    trades = load_trades()
+    changed = False
+    for t in trades:
+        if t.get('itemKey') == item_key:
+            t.update(updates)
+            changed = True
+            break
+    if changed:
+        save_trades(trades)
 
 
-def is_in_watchlist(item_key: str) -> bool:
-    """Check if an item is in the watchlist."""
-    items = load_watchlist()
-    return item_key in items
+def list_active_trades() -> List[Dict[str, Any]]:
+    statuses = set(TRADE_STATUSES[:4])
+    return [t for t in load_trades() if t.get('status') in statuses]
+
+
+def list_completed_trades() -> List[Dict[str, Any]]:
+    statuses = set(TRADE_STATUSES[4:])
+    return [t for t in load_trades() if t.get('status') in statuses]
 
 
 def _blacklist_path() -> Path:
@@ -371,47 +419,41 @@ def find_top_volatility(df: pd.DataFrame, top_n: int = 10) -> List[Dict[str, Any
     return out
 
 
-def find_watchlist_items(df: pd.DataFrame) -> List[Dict[str, Any]]:
-    """Return watchlist items formatted like find_alerts with delta percentage."""
+# find_watchlist_items removed; use find_trades_items
+
+
+def find_trades_items(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Return active trades with MA delta like alerts for the left widget.
+    Sorted with biggest gainers at the top (descending by delta)."""
     out: List[Dict[str, Any]] = []
     if df.empty:
         return out
-    watchlist_keys = load_watchlist()
-    if not watchlist_keys:
+    trade_keys = {t.get('itemKey') for t in list_active_trades()}
+    if not trade_keys:
         return out
     # Filter out blacklisted items first
     blacklisted_keys = set(load_blacklist())
     if blacklisted_keys and 'itemKey' in df.columns:
         df = df[~df['itemKey'].isin(blacklisted_keys)]
-    # Get latest row per itemKey
-    latest = df.groupby('itemKey').tail(1)
-    latest = latest.copy()
-    # Filter to only watchlist items
-    latest = latest[latest['itemKey'].isin(watchlist_keys)]
+    latest = df.groupby('itemKey').tail(1).copy()
+    latest = latest[latest['itemKey'].isin(trade_keys)]
     if latest.empty:
         return out
-    # Compute delta% for each watchlist item
     for _, row in latest.iterrows():
         price = row['price']
         ma = row.get('ma', np.nan)
         disp_name = row.get('displayName', row.get('itemName', ''))
         if not np.isnan(ma) and ma > 0:
             delta_pct = (price - ma) / ma * 100.0
-            # Determine type based on delta%
-            item_type = 'flat'
-            if delta_pct >= 0.1:
-                item_type = 'spike'
-            elif delta_pct <= -0.1:
-                item_type = 'drop'
+            ttype = 'spike' if delta_pct >= 0.1 else ('drop' if delta_pct <= -0.1 else 'flat')
             out.append({
-                'type': item_type,
+                'type': ttype,
                 'text': f"{disp_name} {delta_pct:+.0f}%",
                 'delta': float(delta_pct),
                 'itemKey': row['itemKey'],
                 'category': row['category'],
             })
         else:
-            # No MA data, just show the item
             out.append({
                 'type': 'flat',
                 'text': disp_name,
@@ -419,7 +461,6 @@ def find_watchlist_items(df: pd.DataFrame) -> List[Dict[str, Any]]:
                 'itemKey': row['itemKey'],
                 'category': row['category'],
             })
-    # Sort by delta descending to show gainers at top, losers at bottom
     out.sort(key=lambda x: x.get('delta', 0.0), reverse=True)
     return out
 

@@ -1,0 +1,163 @@
+[
+  {
+    "itemKey": "Building Materials:Wood Board#0100003e7e38000003030d79f94101011663bc",
+    "quantity": 5,
+    "expense": 67235.0,
+    "status": "1 - Purchased",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Collectibles:Handmade Hunting ...#0301000c3c0000000b03111971290101166e5d",
+    "quantity": 2,
+    "expense": 27004.0,
+    "status": "1 - Purchased",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Electronics:Shutter Cable#03010018181800000b03112121210101924014",
+    "quantity": 5,
+    "expense": 33109.0,
+    "status": "1 - Purchased",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Miscellaneous Military Item:Safety Cord#0101003c3c00000003030179610101011c8988",
+    "quantity": 5,
+    "expense": 28059.0,
+    "status": "1 - Purchased",
+    "income": 0
+  },
+  {
+    "itemKey": "Computer Parts:Semiconductor Chip#0101081c3810000003031931715301018f4408",
+    "quantity": 5,
+    "expense": 50587.0,
+    "status": "3 - Stored",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Energy Items:Powerbank#0101003c3c0000000303017979390101986932",
+    "quantity": 5,
+    "expense": 13500.0,
+    "status": "3 - Stored",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Instruments:Gimbal#030118383c1800000303316169310101874a0e",
+    "quantity": 5,
+    "expense": 143155.0,
+    "status": "3 - Stored",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Instruments:Gimbal#030118383c1800000303316169310101874a0e",
+    "quantity": 5,
+    "expense": 154709.0,
+    "status": "3 - Stored",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Computer Parts:CPU Fan#0301003c3c0000000303117161310105945224",
+    "quantity": 5,
+    "expense": 19171.0,
+    "status": "4 - For Sale",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Electronics:Security Camera#0101003c3c000000030301715941010129494c",
+    "quantity": 3,
+    "expense": 22344.0,
+    "status": "4 - For Sale",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Tools:MP Tools#030104183810000047030931313101010782a3",
+    "quantity": 5,
+    "expense": 34108.0,
+    "status": "4 - For Sale",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Building Materials:Bulletproof Gel#01191818181818001313313131317101136751",
+    "quantity": 5,
+    "expense": 69529.0,
+    "status": "5 - Sold",
+    "income": 93365.0
+  },
+  {
+    "itemKey": "Building Materials:Cable#0101183c3c18000003033169616101011caa81",
+    "quantity": 1,
+    "expense": 5359.0,
+    "status": "5 - Sold",
+    "income": 6512.0
+  },
+  {
+    "itemKey": "Energy Items:Phone Battery#0100083c3c3800000303797979790105560c1b",
+    "quantity": 5,
+    "expense": 26196.0,
+    "status": "5 - Sold",
+    "income": 34655.0
+  },
+  {
+    "itemKey": "Household Items:Cotton Cloth#010018181838000003033131313101013c0822",
+    "quantity": 5,
+    "expense": 43133.0,
+    "status": "5 - Sold",
+    "income": 89580.0
+  },
+  {
+    "itemKey": "Household Items:Pencil Sharpener#0100383c3c3800000323717169712901757799",
+    "quantity": 5,
+    "expense": 14610.0,
+    "status": "5 - Sold",
+    "income": 28495.0
+  },
+  {
+    "itemKey": "Instruments:Wave Filter#0100003c3c18000003033971637101055b6b4a",
+    "quantity": 5,
+    "expense": 37226.0,
+    "status": "5 - Sold",
+    "income": 68270.0
+  },
+  {
+    "itemKey": "Miscellaneous Military Item:Filter Canister#0100003c3c180000030331797971010146578a",
+    "quantity": 5,
+    "expense": 30847.0,
+    "status": "5 - Sold",
+    "income": 41480.0
+  },
+  {
+    "itemKey": "Miscellaneous Military Item:Safety Cord#0101003c3c00000003030179610101011c8988",
+    "quantity": 2,
+    "expense": 13852.0,
+    "status": "5 - Sold",
+    "income": 27956.0
+  },
+  {
+    "itemKey": "Miscellaneous Military Item:Weapon Parts#0301001c3c0000000303013d7121010140471e",
+    "quantity": 7,
+    "expense": 63306.0,
+    "status": "5 - Sold",
+    "income": 119415.0
+  },
+  {
+    "itemKey": "Miscellaneous Military Item:Weapon Parts#0301001c3c0000000303013d7121010140471e",
+    "quantity": 2,
+    "expense": 17670.0,
+    "status": "5 - Sold",
+    "income": 32037.0
+  },
+  {
+    "itemKey": "Miscellaneous Military Item:Weapon Parts#0301001c3c0000000303013d7121010140471e",
+    "quantity": 5,
+    "expense": 46060.0,
+    "status": "5 - Sold",
+    "income": 95690.0
+  },
+  {
+    "itemKey": "Paper:Hardcover#01011818181800000303313131310101085b75",
+    "quantity": 5,
+    "expense": 24828.0,
+    "status": "5 - Sold",
+    "income": 46695.0
+  }
+]
