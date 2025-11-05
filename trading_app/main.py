@@ -708,11 +708,42 @@ class MainWindow(QtWidgets.QMainWindow):
         # UI
         central = QtWidgets.QWidget(self)
         self.setCentralWidget(central)
-        main_layout = QtWidgets.QHBoxLayout(central)
+        # Root layout with top stats bar and main content row
+        root_layout = QtWidgets.QVBoxLayout(central)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(10)
+        # Top stats bar
+        top_bar = QtWidgets.QWidget(self)
+        top_bar.setStyleSheet('QWidget { background-color: #0a0a0a; }')
+        top_bar_layout = QtWidgets.QHBoxLayout(top_bar)
+        top_bar_layout.setContentsMargins(8, 8, 8, 8)
+        top_bar_layout.setSpacing(12)
+        top_bar_layout.setAlignment(QtCore.Qt.AlignVCenter)
+        def _make_stat_label(prefix: str) -> QtWidgets.QLabel:
+            lbl = QtWidgets.QLabel(f"{prefix}: 0")
+            lbl.setTextFormat(QtCore.Qt.RichText)
+            lbl.setStyleSheet('color: #c0c0c0; font-weight: bold;')
+            lbl.setAlignment(QtCore.Qt.AlignCenter | QtCore.Qt.AlignVCenter)
+            return lbl
+        self.stat_expense = _make_stat_label('Total Expenses')
+        self.stat_income = _make_stat_label('Total Income')
+        self.stat_gross = _make_stat_label('Total Gross')
+        self.stat_roi = _make_stat_label('Total ROI')
+        for w in (self.stat_expense, self.stat_income, self.stat_gross, self.stat_roi):
+            top_bar_layout.addWidget(w, 1)
+        root_layout.addWidget(top_bar, 0)
+        # Main row container (existing columns)
+        main_row = QtWidgets.QWidget(self)
+        main_layout = QtWidgets.QHBoxLayout(main_row)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        root_layout.addWidget(main_row, 1)
 
         # Left: Filters
         left = QtWidgets.QWidget(self)
         left_layout = QtWidgets.QVBoxLayout(left)
+        left_layout.setContentsMargins(10, 0, 10, 10)
+        left_layout.setSpacing(8)
         main_layout.addWidget(left, 1)
 
         self.category_cb = QtWidgets.QComboBox(self)
@@ -749,6 +780,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Right: Chart + Table + Thumbnail (thumbnail to the right of chart)
         right = QtWidgets.QWidget(self)
         right_layout = QtWidgets.QVBoxLayout(right)
+        right_layout.setContentsMargins(10, 0, 10, 10)
         main_layout.addWidget(right, 3)
 
         # Chart + Thumbnail row (non-movable, chart takes remaining space)
@@ -873,8 +905,40 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_alerts()
         self._update_trades_widget()
         self._refresh_trade_panels()
+        self._update_top_stats()
         # Initialize blacklist button state
         self._update_blacklist_button_state()
+
+    def _update_top_stats(self) -> None:
+        try:
+            trades = utils.load_trades()
+        except Exception:
+            trades = []
+        total_expense = 0.0
+        total_income = 0.0
+        for t in trades:
+            try:
+                total_expense += float(t.get('expense') or 0.0)
+                total_income += float(t.get('income') or 0.0)
+            except Exception:
+                continue
+        total_gross = total_income - total_expense
+        roi_pct = (total_gross / total_expense * 100.0) if total_expense > 0 else 0.0
+        # Update labels with thousand separators, coloring only the numbers
+        if hasattr(self, 'stat_expense'):
+            expense_val = f"{total_expense:,.0f}"
+            self.stat_expense.setText(f'Total Expenses: <span style="color: #ff4444;">{expense_val}</span>')
+        if hasattr(self, 'stat_income'):
+            income_val = f"{total_income:,.0f}"
+            self.stat_income.setText(f'Total Income: <span style="color: #00ff88;">{income_val}</span>')
+        if hasattr(self, 'stat_gross'):
+            gross_val = f"{total_gross:,.0f}"
+            gross_color = '#00ff88' if total_gross >= 0 else '#ff4444'
+            self.stat_gross.setText(f'Total Gross: <span style="color: {gross_color};">{gross_val}</span>')
+        if hasattr(self, 'stat_roi'):
+            roi_val = f"{roi_pct:.0f}%"
+            roi_color = '#00ff88' if roi_pct >= 0 else '#ff4444'
+            self.stat_roi.setText(f'Total ROI: <span style="color: {roi_color};">{roi_val}</span>')
 
     def _apply_dark_theme(self) -> None:
         app = QtWidgets.QApplication.instance()
@@ -1385,6 +1449,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_alerts()  # Update Top Movers
         self._update_trades_widget()  # Update My Trades
         self._refresh_trade_panels()
+        self._update_top_stats()
 
     def _on_buy_btn_clicked(self) -> None:
         """Prompt for quantity and expense to add a trade for current item."""
@@ -1402,6 +1467,7 @@ class MainWindow(QtWidgets.QMainWindow):
         utils.add_trade(self._current_item_key, display_name, qty, expense)
         self._update_trades_widget()
         self._refresh_trade_panels()
+        self._update_top_stats()
 
     def _on_alert_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
         # Select the corresponding row in the table and update chart/thumbnail
@@ -1511,7 +1577,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Right column: Active Trades (top) and Completed Trades (bottom)
         panel = QtWidgets.QWidget(self)
         panel_layout = QtWidgets.QVBoxLayout(panel)
-        panel_layout.setContentsMargins(6, 0, 0, 0)
+        panel_layout.setContentsMargins(10, 0, 10, 10)
         panel_layout.setSpacing(8)
 
         panel_layout.addWidget(QtWidgets.QLabel('Active Trades'))
@@ -1654,6 +1720,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     utils.update_trade(trade.get('itemKey'), {'income': income, 'status': '5 - Sold'})
                     self._refresh_trade_panels()
                     self._update_trades_widget()
+                self._update_top_stats()
                 sell_btn.clicked.connect(on_sell)
 
             # Show Lost button if status is "2 - In Transit"
@@ -1697,6 +1764,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 utils.update_trade(trade.get('itemKey'), {'status': new_status})
                 self._refresh_trade_panels()
                 self._update_trades_widget()
+                self._update_top_stats()
             status_cb.currentTextChanged.connect(lambda _: on_status_changed())
         return card
 
@@ -1815,7 +1883,7 @@ def main() -> int:
     # Load config relative to this script's location
     config_path = Path(__file__).parent / 'config.yaml'
     win = MainWindow(str(config_path))
-    win.resize(1100, 700)
+    win.resize(1400, 700)
     win.show()
     return app.exec()
 
