@@ -1,12 +1,5 @@
 [
   {
-    "itemKey": "Building Materials:Wood Board#0100003e7e38000003030d79f94101011663bc",
-    "quantity": 5,
-    "expense": 67235.0,
-    "status": "1 - Purchased",
-    "income": 0.0
-  },
-  {
     "itemKey": "Collectibles:Handmade Hunting ...#0301000c3c0000000b03111971290101166e5d",
     "quantity": 2,
     "expense": 27004.0,
@@ -26,6 +19,13 @@
     "expense": 28059.0,
     "status": "1 - Purchased",
     "income": 0
+  },
+  {
+    "itemKey": "Building Materials:Wood Board#0100003e7e38000003030d79f94101011663bc",
+    "quantity": 5,
+    "expense": 67235.0,
+    "status": "3 - Stored",
+    "income": 0.0
   },
   {
     "itemKey": "Computer Parts:Semiconductor Chip#0101081c3810000003031931715301018f4408",
@@ -110,6 +110,13 @@
     "expense": 14610.0,
     "status": "5 - Sold",
     "income": 28495.0
+  },
+  {
+    "itemKey": "Household Items:Urea#010018181818000003033131313101010373ec",
+    "quantity": 3,
+    "expense": 8493.0,
+    "status": "5 - Sold",
+    "income": 14750.0
   },
   {
     "itemKey": "Instruments:Wave Filter#0100003c3c18000003033971637101055b6b4a",
