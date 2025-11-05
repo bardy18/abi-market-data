@@ -26,6 +26,8 @@ A computer vision-based market intelligence system for Arena Breakout: Infinite.
    ```bash
    pip install -r requirements.txt
    ```
+   
+   **Note**: `boto3` is required for S3 integration (automatic snapshot downloads). `pyinstaller` is required only if you want to build the standalone executable.
 
 3. **Configure Tesseract** (if not in PATH):
    - Edit `collector/config.yaml`
@@ -83,10 +85,13 @@ python trading_app/main.py
 ```
 
 The GUI lets you:
-- Browse all captured items
+- Browse all captured items with thumbnails
 - Search/filter by category or name
-- View price history (with multiple snapshots)
-- Track trends and volatility
+- View price history charts (with multiple snapshots)
+- Track trends and volatility with moving averages
+- Monitor price changes and ranges
+- Set custom display names for items (double-click to edit)
+- Track personal trades and blacklist items
 
 ## Recommended Scanning Schedule
 
@@ -136,9 +141,13 @@ This saves you from manually editing the JSON file later!
 
 The platform supports centralized data sharing via AWS S3:
 
-- **Upload Snapshots**: Use `scripts/upload_snapshots.bat` to sync snapshots to S3 using AWS CLI
-- **Download from S3**: The trading app automatically downloads snapshots from S3 (credentials embedded in executable)
-- **Private Bucket**: Uses IAM credentials for secure access
+- **Upload Snapshots**: Use `scripts/upload_snapshots.bat` to sync snapshots and thumbnails to S3 using AWS CLI. This syncs your local `snapshots/` folder (including `thumbs/` subfolder) to S3, with your local folder as the master (deletes files in S3 that don't exist locally).
+- **Download from S3**: The trading app automatically downloads snapshots and thumbnails from S3
+- **Private Bucket**: Uses IAM service account credentials (read-only) embedded in the executable
+- **Override Credentials**: Users can override embedded credentials by:
+  - Creating `s3_config.json` in the project root with their own credentials
+  - Setting `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables
+  - Setting `S3_BUCKET_NAME` and `AWS_REGION` environment variables
 
 The build script (`packaging/build_package.py`) handles embedding S3 credentials and creating the distributable package.
 
@@ -159,6 +168,9 @@ This creates a distributable package with:
 - Standalone executable (no Python installation needed)
 - Empty `trades.json` and `blacklist.json` for user-specific data
 - Automatic S3 snapshot and thumbnail downloads
+- Embedded S3 credentials (obfuscated) for seamless access
+
+**Note**: Before building, create `packaging/s3_config.json` from `packaging/s3_config.json.example` with your AWS credentials.
 
 ### Website
 
@@ -203,7 +215,10 @@ ABIMarketData/
 ├── packaging/                  # Build and deployment files
 │   ├── build_package.py       # Package builder (creates standalone executable)
 │   └── s3_config.json.example # Template for S3 credentials (copy to s3_config.json)
+├── tools/                      # Utility scripts
+│   └── sort_display_mappings.py # Sort display mappings alphabetically
 ├── requirements.txt           # Python dependencies
+├── LICENSE                     # MIT License
 └── README.md                  # This file
 ```
 
