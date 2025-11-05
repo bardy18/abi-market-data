@@ -183,8 +183,8 @@ ABIMarketData/
 │   ├── s3_config.py           # S3 configuration (credentials embedded at build time)
 │   └── config.yaml            # App settings
 ├── mappings/                  # Item name mappings
-│   ├── ocr_mappings.json      # OCR name → Display name
-│   └── display_mappings.json  # ItemKey → Friendly name
+│   ├── ocr_mappings.json      # OCR name → Clean name
+│   └── display_mappings.json  # ItemKey → Display name
 ├── scripts/                     # Launcher scripts
 │   ├── capture_market_data.bat  # Windows launcher for collector
 │   ├── view_market_data.bat     # Windows launcher for GUI
