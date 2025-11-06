@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from datetime import datetime, timezone
 
+# Add parent directory to path for imports (must be before importing trading_app)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import resource_path from utils
 from trading_app.utils import resource_path
@@ -33,8 +35,7 @@ try:
 except ImportError:
     MPLCURSORS_AVAILABLE = False
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Import utils (path already set up above)
 from trading_app import utils
 
 
@@ -412,11 +413,8 @@ class TrendChart(QtWidgets.QWidget):
                 # Legend removed for cleaner look
         self.canvas.draw_idle()
         
-        # Automatically show tooltip for the latest data point after chart is rendered
-        if MPLCURSORS_AVAILABLE and self._cursor is not None and self._data_points:
-            # Process events to ensure canvas is drawn, then show tooltip
-            QtCore.QCoreApplication.processEvents()
-            QtCore.QTimer.singleShot(200, self._show_latest_tooltip)
+        # Don't automatically show tooltip here - wait for thumbnail to load first
+        # Tooltip will be shown after thumbnail is loaded in _on_table_clicked
     
     def _show_latest_tooltip(self) -> None:
         """Show tooltip for the latest data point automatically."""
@@ -691,8 +689,11 @@ class LoadingScreen(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(QtCore.Qt.WindowType.Window | QtCore.Qt.WindowType.WindowStaysOnTopHint)
-        self.setWindowTitle('ABI Market Trading App - Loading')
+        self.setWindowTitle('ABI Trading Platform')
         self.setFixedSize(400, 200)
+        
+        # Set window icon
+        self._set_window_icon()
         self.setStyleSheet('''
             QWidget {
                 background-color: #0a0a0a;
@@ -736,6 +737,36 @@ class LoadingScreen(QtWidgets.QWidget):
         
         # Center the window
         self._center_window()
+    
+    def _set_window_icon(self) -> None:
+        """Try to load and set window icon from common locations."""
+        # Possible icon locations (check .ico first on Windows, then .png)
+        # In PyInstaller bundle, icon is in trading_app/ subdirectory
+        # In dev mode, icon is in trading_app/ directory
+        icon_paths = [
+            resource_path('trading_app/icon.ico'),  # PyInstaller bundle or dev
+            resource_path('trading_app/icon.png'),  # PyInstaller bundle or dev
+        ]
+        # Also check parent directory locations for dev mode
+        if not getattr(sys, 'frozen', False):
+            script_dir = Path(__file__).parent
+            icon_paths.extend([
+                script_dir.parent / 'icon.ico',  # abi-market-data/icon.ico
+                script_dir.parent / 'icon.png',  # abi-market-data/icon.png
+                script_dir.parent / 'assets' / 'icon.ico',  # abi-market-data/assets/icon.ico
+                script_dir.parent / 'assets' / 'icon.png',  # abi-market-data/assets/icon.png
+            ])
+        
+        for icon_path in icon_paths:
+            if icon_path.exists():
+                try:
+                    icon = QtGui.QIcon(str(icon_path))
+                    if not icon.isNull():
+                        self.setWindowIcon(icon)
+                        return
+                except Exception:
+                    # If loading fails, try next path
+                    continue
     
     def _center_window(self):
         """Center the loading screen on the screen."""
@@ -790,7 +821,9 @@ class SnapshotLoader(QtCore.QThread):
                         
                         for idx, filename in enumerate(s3_files):
                             # Load snapshot directly from S3 into memory (no disk caching)
-                            self.progress.emit(f'Loading {filename}...', 15 + int((idx / total_files) * 60))
+                            # Remove .json extension from display
+                            display_name = filename.replace('.json', '') if filename.endswith('.json') else filename
+                            self.progress.emit(f'Loading {display_name}...', 15 + int((idx / total_files) * 60))
                             snap = utils.load_snapshot_from_s3(s3_config, filename)
                             
                             if snap and isinstance(snap.get('categories', {}), dict):
@@ -838,7 +871,7 @@ class SnapshotLoader(QtCore.QThread):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, config_path: str, snapshots: list = None):
         super().__init__()
-        self.setWindowTitle('ABI Market Trading App')
+        self.setWindowTitle('ABI Trading Platform')
         
         # Try to load and set window icon
         self._set_window_icon()
@@ -1424,6 +1457,12 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.thumb_label.setText('')
             except Exception:
                 self.thumb_label.setText('')
+            
+            # Now that thumbnail is loaded, show the tooltip for the latest price
+            # This prevents flickering - tooltip appears only after everything is ready
+            QtCore.QCoreApplication.processEvents()  # Ensure UI updates are processed
+            QtCore.QTimer.singleShot(100, self.chart._show_latest_tooltip)
+            
             # Update trade panels to reflect newly selected item
             self._refresh_trade_panels()
 

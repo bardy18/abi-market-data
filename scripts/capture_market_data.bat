@@ -24,7 +24,11 @@ echo.
 echo Starting collector...
 echo.
 
-cd ..
+REM Get the directory where this script is located
+set SCRIPT_DIR=%~dp0
+REM Change to parent directory (abi-market-data root)
+cd /d "%SCRIPT_DIR%.."
+
 python collector/main.py
 
 echo.

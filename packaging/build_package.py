@@ -296,12 +296,6 @@ USAGE:
 - The app will automatically download market data snapshots
 - Your trades.json and blacklist.json will be saved in this folder
 - You can move these files if needed, but keep them with the .exe
-
-NOTES:
-- First launch may take a moment to download snapshots
-- Internet connection required to download market data
-- All market data is downloaded from centralized storage
-- No configuration needed - data access is built-in
 """
     
     readme_path = output_dir / 'README.txt'

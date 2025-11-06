@@ -21,7 +21,11 @@ echo.
 echo Loading snapshots...
 echo.
 
-cd ..
+REM Get the directory where this script is located
+set SCRIPT_DIR=%~dp0
+REM Change to parent directory (abi-market-data root)
+cd /d "%SCRIPT_DIR%.."
+
 python trading_app/main.py
 
 echo.
