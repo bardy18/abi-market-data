@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import uuid
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 from pathlib import Path
@@ -118,9 +119,9 @@ def save_trades(trades: List[Dict[str, Any]]) -> None:
     global _trades_data
     fp = _trades_path()
     fp.parent.mkdir(parents=True, exist_ok=True)
-    # Normalize/sort for stable file ordering: by status then name
+    # Normalize/sort for stable file ordering: by creation timestamp (newest first)
     # Persist ONLY minimal fields; derived metrics are computed in the UI
-    keep_keys = {'itemKey', 'quantity', 'expense', 'income', 'status'}
+    keep_keys = {'itemKey', 'quantity', 'expense', 'income', 'status', 'tradeId', 'createdAt'}
     norm: List[Dict[str, Any]] = []
     for t in trades:
         tc = {k: v for k, v in dict(t).items() if k in keep_keys}
@@ -131,7 +132,8 @@ def save_trades(trades: List[Dict[str, Any]]) -> None:
         # itemKey required for identification/display
         tc.setdefault('itemKey', '')
         norm.append(tc)
-    norm.sort(key=lambda x: (_status_sort_key(x.get('status', '')), str(x.get('displayName') or x.get('itemKey') or '')))
+    # Sort by createdAt (newest first) to preserve creation order
+    norm.sort(key=lambda x: int(x.get('createdAt', 0) or 0), reverse=True)
     with open(fp, 'w', encoding='utf-8') as f:
         json.dump(norm, f, ensure_ascii=False, indent=2)
     _trades_data = norm
@@ -139,6 +141,7 @@ def save_trades(trades: List[Dict[str, Any]]) -> None:
 
 def add_trade(item_key: str, display_name: str, quantity: int, expense_total: float, status: str = TRADE_STATUSES[0]) -> Dict[str, Any]:
     """Add a new trade and return it."""
+    import time
     trades = load_trades()
     trade = {
         'itemKey': item_key,
@@ -146,20 +149,32 @@ def add_trade(item_key: str, display_name: str, quantity: int, expense_total: fl
         'expense': float(expense_total),
         'status': status,
         'income': 0.0,
+        'tradeId': str(uuid.uuid4()),  # Guaranteed unique UUID
+        'createdAt': int(time.time() * 1000),  # Timestamp for sorting (milliseconds)
     }
     trades.append(trade)
     save_trades(trades)
     return trade
 
 
-def update_trade(item_key: str, updates: Dict[str, Any]) -> None:
+def update_trade(item_key: str, updates: Dict[str, Any], trade_id: Optional[str] = None) -> None:
+    """Update a trade by itemKey. If trade_id is provided, update only that specific trade.
+    If trade_id is None and multiple trades exist with the same itemKey, update the first one."""
     trades = load_trades()
     changed = False
     for t in trades:
         if t.get('itemKey') == item_key:
-            t.update(updates)
-            changed = True
-            break
+            # If trade_id is provided, only update the matching trade
+            if trade_id is not None:
+                if t.get('tradeId') == trade_id:
+                    t.update(updates)
+                    changed = True
+                    break
+            else:
+                # No trade_id provided - update first match (backward compatibility)
+                t.update(updates)
+                changed = True
+                break
     if changed:
         save_trades(trades)
 

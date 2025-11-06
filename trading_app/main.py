@@ -808,7 +808,7 @@ class SnapshotLoader(QtCore.QThread):
             # Check if S3 is configured
             s3_config = utils.load_s3_config()
             if s3_config and s3_config.get('use_s3'):
-                self.progress.emit('Connecting to S3...', 10)
+                self.progress.emit('Connecting...', 10)
                 try:
                     # List S3 snapshots (already sorted newest first)
                     s3_files = utils.list_s3_snapshots(s3_config, limit=self.limit)
@@ -1861,8 +1861,15 @@ class MainWindow(QtWidgets.QMainWindow):
             # Only allow active statuses (1-4) to be selected directly
             for s in utils.TRADE_STATUSES[:4]:
                 status_cb.addItem(s)
+            # Block signals when setting initial value to prevent triggering update
+            status_cb.blockSignals(True)
             status_cb.setCurrentText(curr)
+            status_cb.blockSignals(False)
             status_cb.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
+            # Disable mouse wheel on combo box - only allow clicking to change values
+            def ignore_wheel_event(event):
+                event.ignore()  # Ignore wheel events so they don't change dropdown values
+            status_cb.wheelEvent = ignore_wheel_event
             v.addWidget(status_cb)
 
         # Rows container without borders
@@ -1950,7 +1957,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         income = float(str(income_text).replace(',', '').strip())
                     except ValueError:
                         income = 0.0
-                    utils.update_trade(trade.get('itemKey'), {'income': income, 'status': '5 - Sold'})
+                    utils.update_trade(trade.get('itemKey'), {'income': income, 'status': '5 - Sold'}, trade_id=trade.get('tradeId'))
                     self._refresh_trade_panels()
                     self._update_trades_widget()
                     self._update_top_stats()
@@ -1984,7 +1991,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 h3.addWidget(lost_btn, 0)
                 rows_container.addWidget(lost_row)
                 def on_lost() -> None:
-                    utils.update_trade(trade.get('itemKey'), {'status': '6 - Lost'})
+                    utils.update_trade(trade.get('itemKey'), {'status': '6 - Lost'}, trade_id=trade.get('tradeId'))
                     self._refresh_trade_panels()
                     self._update_trades_widget()
                 lost_btn.clicked.connect(on_lost)
@@ -1992,13 +1999,17 @@ class MainWindow(QtWidgets.QMainWindow):
         v.addLayout(rows_container)
 
         if not completed:
+            # Capture itemKey and tradeId in closure to ensure we update the correct trade
+            item_key = trade.get('itemKey')
+            trade_id = trade.get('tradeId')
             def on_status_changed() -> None:
                 new_status = status_cb.currentText()
-                utils.update_trade(trade.get('itemKey'), {'status': new_status})
-                self._refresh_trade_panels()
-                self._update_trades_widget()
-                self._update_top_stats()
-            status_cb.currentTextChanged.connect(lambda _: on_status_changed())
+                if item_key:
+                    utils.update_trade(item_key, {'status': new_status}, trade_id=trade_id)
+                    self._refresh_trade_panels()
+                    self._update_trades_widget()
+                    self._update_top_stats()
+            status_cb.currentTextChanged.connect(on_status_changed)
         return card
 
     def _refresh_trade_panels(self) -> None:
@@ -2011,7 +2022,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 w.deleteLater()
         key = self._current_item_key or ''
         active = [t for t in utils.list_active_trades() if key and t.get('itemKey') == key]
-        active.sort(key=lambda t: (utils._status_sort_key(t.get('status', '')), utils.get_display_name(t.get('itemKey',''))))
+        # Sort by createdAt (newest first) - timestamp in milliseconds
+        active.sort(key=lambda t: int(t.get('createdAt', 0) or 0), reverse=True)
         if not active:
             # Show helpful empty state
             msg = QtWidgets.QLabel('No active trades found...')
@@ -2030,7 +2042,8 @@ class MainWindow(QtWidgets.QMainWindow):
             if w is not None:
                 w.deleteLater()
         done = [t for t in utils.list_completed_trades() if key and t.get('itemKey') == key]
-        done.sort(key=lambda t: (utils._status_sort_key(t.get('status', '')), utils.get_display_name(t.get('itemKey',''))))
+        # Sort by createdAt (newest first) - timestamp in milliseconds
+        done.sort(key=lambda t: int(t.get('createdAt', 0) or 0), reverse=True)
         if not done:
             msg = QtWidgets.QLabel('No completed trades found...')
             msg.setStyleSheet('color: #888888;')
