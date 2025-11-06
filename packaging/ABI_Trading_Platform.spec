@@ -21,6 +21,7 @@ a = Analysis(
         'boto3',
         'botocore',
         'trading_app.s3_config',
+        'trading_app.version',
     ],
     hookspath=[],
     hooksconfig={},

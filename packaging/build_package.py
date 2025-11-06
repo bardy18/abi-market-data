@@ -369,6 +369,58 @@ def get_download_config():
     return 'abi-market-data-downloads', region
 
 
+def deploy_website() -> bool:
+    """Deploy the website folder to S3 static hosting bucket.
+    
+    Syncs the website folder to S3 for static web hosting.
+    This ensures the website version matches the package version.
+    """
+    import subprocess
+    
+    website_dir = PROJECT_ROOT / 'website'
+    if not website_dir.exists():
+        print("[!] Warning: website directory not found")
+        print("    Website deployment skipped")
+        return False
+    
+    # Website bucket name (hardcoded, matches deploy_website.bat)
+    website_bucket = 'abi-market-data-web'
+    s3_path = f"s3://{website_bucket}/"
+    
+    print("\n[*] Deploying website to S3...")
+    print(f"    Bucket: {website_bucket}")
+    print(f"    Local path: {website_dir}")
+    print(f"    S3 path: {s3_path}")
+    
+    try:
+        # Sync website folder to S3
+        # --delete: Delete files in S3 that don't exist locally (makes S3 match local)
+        result = subprocess.run(
+            ['aws', 's3', 'sync', str(website_dir), s3_path, '--delete', '--profile', 'abi'],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        
+        print("[OK] Website deployed successfully!")
+        print(f"    Website is now live at: http://{website_bucket}.s3-website-us-east-1.amazonaws.com")
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        print(f"[!] Website deployment failed: {e}")
+        print("    Please check:")
+        print("      - AWS CLI is installed: aws --version")
+        print("      - AWS credentials are configured: aws configure list")
+        print("      - Bucket name is correct and exists")
+        print("      - You have write permissions to the bucket")
+        print("      - Static web hosting is enabled on the bucket")
+        return False
+    except FileNotFoundError:
+        print("[!] AWS CLI not found. Website deployment skipped.")
+        print("    Install AWS CLI to enable automatic website deployment")
+        return False
+
+
 def upload_package_to_s3(zip_path: Path) -> Optional[str]:
     """Upload the ZIP package to S3 for public download.
     
@@ -555,6 +607,7 @@ def main():
         print("    or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables")
     
     download_url = None
+    website_deployed = False
     try:
         # Build executable
         if not build_executable():
@@ -567,6 +620,14 @@ def main():
         
         # Upload to S3
         download_url = upload_package_to_s3(zip_path)
+        
+        # Deploy website to S3 (only if package upload was successful)
+        # This ensures the website version matches the package version
+        if download_url:
+            website_deployed = deploy_website()
+            if not website_deployed:
+                print("\n[!] Warning: Website deployment failed, but package was uploaded successfully")
+                print("    You may want to deploy the website manually using: scripts/deploy_website.bat")
         
         # Clean up dist folder after successful upload
         if download_url:
@@ -609,6 +670,10 @@ def main():
         print(f"\n[OK] Package uploaded successfully!")
         print(f"    Version: {new_version}")
         print(f"    Download URL: {download_url}")
+        if website_deployed:
+            print(f"    Website deployed: Version {new_version} is now live")
+        else:
+            print(f"    Website: Not deployed (package version updated locally)")
     else:
         print("\n[!] Package built but not uploaded to S3")
         print("    Upload will be retried automatically on next build")
