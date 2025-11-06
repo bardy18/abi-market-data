@@ -557,6 +557,68 @@ header h1 {
     font-style: italic;
 }
 
+/* Update Instructions */
+.update-instructions {
+    max-width: 700px;
+    margin: 3rem auto 0;
+    background: var(--card-bg);
+    padding: 2.5rem;
+    border-radius: 12px;
+    border: 2px solid var(--border-color);
+    text-align: left;
+}
+
+.update-instructions h3 {
+    color: var(--primary-color);
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.update-instructions > p {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.update-instructions ol {
+    color: var(--text-primary);
+    padding-left: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.update-instructions ol li {
+    margin-bottom: 0.75rem;
+    line-height: 1.6;
+}
+
+.update-instructions ol li strong {
+    color: var(--primary-color);
+}
+
+.update-instructions code {
+    background: var(--bg-dark);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    color: var(--primary-color);
+    font-size: 0.9em;
+    border: 1px solid var(--border-color);
+}
+
+.update-warning {
+    background: rgba(255, 102, 0, 0.1);
+    border-left: 4px solid var(--secondary-color);
+    padding: 1rem;
+    border-radius: 4px;
+    margin-top: 1.5rem;
+    color: var(--text-secondary);
+}
+
+.update-warning strong {
+    color: var(--secondary-color);
+}
+
 /* Community Message Section */
 .community-message {
     padding: 4rem 0;

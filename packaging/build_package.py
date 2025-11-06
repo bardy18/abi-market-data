@@ -11,6 +11,7 @@ import sys
 import shutil
 import json
 import base64
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -99,6 +100,90 @@ def embed_s3_credentials():
         return False
 
 
+def get_current_version() -> Optional[str]:
+    """Read the current version from trading_app/version.py."""
+    version_file = PROJECT_ROOT / 'trading_app' / 'version.py'
+    if not version_file.exists():
+        print("[!] Error: trading_app/version.py not found!")
+        return None
+    
+    try:
+        content = version_file.read_text(encoding='utf-8')
+        # Extract version using regex
+        match = re.search(r'__version__ = ["\']([^"\']+)["\']', content)
+        if match:
+            return match.group(1)
+        print("[!] Error: Could not find __version__ in version.py")
+        return None
+    except Exception as e:
+        print(f"[!] Error reading version file: {e}")
+        return None
+
+
+def increment_patch_version(version: str) -> str:
+    """Increment the patch version (e.g., 1.0.0 -> 1.0.1)."""
+    parts = version.split('.')
+    if len(parts) != 3:
+        print(f"[!] Warning: Invalid version format '{version}', expected MAJOR.MINOR.PATCH")
+        # Try to fix it - add missing parts
+        while len(parts) < 3:
+            parts.append('0')
+        version = '.'.join(parts[:3])
+    
+    try:
+        major, minor, patch = parts
+        patch = str(int(patch) + 1)
+        return f"{major}.{minor}.{patch}"
+    except ValueError:
+        print(f"[!] Error: Could not parse version '{version}'")
+        return version
+
+
+def update_version_files(new_version: str) -> bool:
+    """Update version in both trading_app/version.py and website/index.html."""
+    success = True
+    
+    # Update app version
+    version_file = PROJECT_ROOT / 'trading_app' / 'version.py'
+    if version_file.exists():
+        try:
+            content = version_file.read_text(encoding='utf-8')
+            new_content = re.sub(
+                r'__version__ = ["\'][^"\']+["\']',
+                f'__version__ = "{new_version}"',
+                content
+            )
+            version_file.write_text(new_content, encoding='utf-8')
+            print(f"[OK] Updated app version to {new_version}")
+        except Exception as e:
+            print(f"[!] Error updating app version: {e}")
+            success = False
+    else:
+        print("[!] Error: trading_app/version.py not found")
+        success = False
+    
+    # Update website version
+    website_file = PROJECT_ROOT / 'website' / 'index.html'
+    if website_file.exists():
+        try:
+            content = website_file.read_text(encoding='utf-8')
+            new_content = re.sub(
+                r'<h3>ABI Trading Platform v[^<]+</h3>',
+                f'<h3>ABI Trading Platform v{new_version}</h3>',
+                content
+            )
+            website_file.write_text(new_content, encoding='utf-8')
+            print(f"[OK] Updated website version to {new_version}")
+        except Exception as e:
+            print(f"[!] Error updating website version: {e}")
+            success = False
+    else:
+        print("[!] Warning: website/index.html not found")
+        # Don't fail the build if website file is missing (might be in separate repo)
+    
+    return success
+
+
 def restore_s3_config_default():
     """Restore s3_config.py to its original state (no embedded credentials)."""
     default_config_path = PROJECT_ROOT / 'trading_app' / 's3_config.py'
@@ -168,6 +253,7 @@ a = Analysis(
         'boto3',
         'botocore',
         'trading_app.s3_config',
+        'trading_app.version',
     ],
     hookspath=[],
     hooksconfig={{}},
@@ -442,6 +528,23 @@ def main():
         print("    Run this script from the packaging/ directory.")
         return 1
     
+    # Auto-increment version
+    print("\n[*] Updating version...")
+    current_version = get_current_version()
+    if not current_version:
+        print("[!] Error: Could not read current version")
+        print("    Build aborted to prevent version mismatch")
+        return 1
+    
+    new_version = increment_patch_version(current_version)
+    print(f"    Current version: {current_version}")
+    print(f"    New version: {new_version}")
+    
+    if not update_version_files(new_version):
+        print("[!] Error: Could not update version files")
+        print("    Build aborted to prevent version mismatch")
+        return 1
+    
     # Embed S3 credentials
     print("\n[*] Embedding S3 credentials...")
     credentials_embedded = embed_s3_credentials()
@@ -504,6 +607,7 @@ def main():
     
     if download_url:
         print(f"\n[OK] Package uploaded successfully!")
+        print(f"    Version: {new_version}")
         print(f"    Download URL: {download_url}")
     else:
         print("\n[!] Package built but not uploaded to S3")

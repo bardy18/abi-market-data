@@ -37,6 +37,7 @@ except ImportError:
 
 # Import utils (path already set up above)
 from trading_app import utils
+from trading_app import version
 
 
 class TrendChart(QtWidgets.QWidget):
@@ -689,7 +690,7 @@ class LoadingScreen(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(QtCore.Qt.WindowType.Window | QtCore.Qt.WindowType.WindowStaysOnTopHint)
-        self.setWindowTitle('ABI Trading Platform')
+        self.setWindowTitle(f'ABI Trading Platform v{version.__version__}')
         self.setFixedSize(400, 200)
         
         # Set window icon
@@ -871,7 +872,7 @@ class SnapshotLoader(QtCore.QThread):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, config_path: str, snapshots: list = None):
         super().__init__()
-        self.setWindowTitle('ABI Trading Platform')
+        self.setWindowTitle(f'ABI Trading Platform v{version.__version__}')
         
         # Try to load and set window icon
         self._set_window_icon()
