@@ -36,6 +36,7 @@ wheels/
 debug_*/
 !README_images/*.png
 s3_config.json
+production/ABI_Trading_Platform.exe
 
 # Logs
 *.log
