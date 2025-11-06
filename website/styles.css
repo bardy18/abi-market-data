@@ -179,6 +179,16 @@ header h1 {
     background: var(--bg-dark);
 }
 
+.section-description {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    margin-bottom: 3rem;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 .how-it-works h2 {
     text-align: center;
     font-size: 2.5rem;
@@ -225,6 +235,173 @@ header h1 {
 
 .step p {
     color: var(--text-secondary);
+}
+
+/* Merchant Loop Section */
+.merchant-loop {
+    padding: 4rem 0;
+    background: var(--bg-darker);
+}
+
+.merchant-loop h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+}
+
+.loop-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 0;
+}
+
+.loop-step {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 2px solid var(--border-color);
+    text-align: center;
+    min-width: 150px;
+    max-width: 180px;
+    transition: all 0.3s ease;
+    flex: 1 1 auto;
+}
+
+.loop-step:hover {
+    transform: translateY(-5px);
+    border-color: var(--primary-color);
+    box-shadow: 0 10px 30px rgba(0, 255, 136, 0.2);
+}
+
+.loop-step.loop-profit {
+    border-color: var(--secondary-color);
+    background: linear-gradient(135deg, var(--card-bg) 0%, rgba(255, 102, 0, 0.1) 100%);
+}
+
+.loop-step.loop-profit:hover {
+    border-color: var(--secondary-color);
+    box-shadow: 0 10px 30px rgba(255, 102, 0, 0.3);
+}
+
+.loop-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.loop-step h3 {
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.loop-step.loop-profit h3 {
+    color: var(--secondary-color);
+}
+
+.loop-step p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.loop-arrow {
+    font-size: 2rem;
+    color: var(--primary-color);
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .loop-arrow {
+        transform: rotate(90deg);
+        margin: 0.5rem 0;
+    }
+    
+    .loop-container {
+        flex-direction: column;
+    }
+}
+
+/* Investment Theory Section */
+.investment-theory {
+    padding: 4rem 0;
+    background: var(--bg-dark);
+}
+
+.investment-theory h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+}
+
+.theory-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: start;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.theory-chart-container {
+    background: var(--card-bg);
+    padding: 2rem;
+    border-radius: 12px;
+    border: 2px solid var(--border-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.theory-chart {
+    width: 100%;
+    height: auto;
+    max-width: 600px;
+}
+
+.theory-explanation {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.theory-point {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border-left: 4px solid var(--primary-color);
+}
+
+.theory-point h3 {
+    color: var(--primary-color);
+    margin-bottom: 0.75rem;
+    font-size: 1.2rem;
+}
+
+.theory-point p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+@media (max-width: 968px) {
+    .theory-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .theory-chart-container {
+        order: 2;
+    }
+    
+    .theory-explanation {
+        order: 1;
+    }
 }
 
 /* Screenshot Section */
