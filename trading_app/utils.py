@@ -275,16 +275,23 @@ def load_s3_config() -> Optional[Dict[str, Any]]:
         return config
     
     # Try config file (for users who want to override embedded credentials)
-    config_path = Path(__file__).parent.parent / 's3_config.json'
-    if config_path.exists():
-        try:
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-                config['use_s3'] = True
-                config.setdefault('key_prefix', 'snapshots/')
-                return config
-        except Exception:
-            pass
+    # Check packaging folder first, then root (for backward compatibility)
+    project_root = Path(__file__).parent.parent
+    config_paths = [
+        project_root / 'packaging' / 's3_config.json',  # Preferred location
+        project_root / 's3_config.json',  # Fallback for backward compatibility
+    ]
+    
+    for config_path in config_paths:
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    config['use_s3'] = True
+                    config.setdefault('key_prefix', 'snapshots/')
+                    return config
+            except Exception:
+                continue
     
     # Try embedded default credentials (for distributed executable)
     try:
@@ -349,8 +356,44 @@ def list_s3_snapshots(s3_config: Dict[str, Any], limit: Optional[int] = None) ->
         return []
 
 
+def load_snapshot_from_s3(s3_config: Dict[str, Any], filename: str) -> Optional[Dict[str, Any]]:
+    """Load a snapshot file directly from S3 into memory (no disk caching)."""
+    try:
+        import boto3
+        
+        # Create S3 client - works without credentials for public buckets
+        region = s3_config.get('region', 'us-east-1')
+        access_key = s3_config.get('access_key')
+        secret_key = s3_config.get('secret_key')
+        
+        if access_key and secret_key:
+            s3_client = boto3.client(
+                's3',
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
+        else:
+            # Try without credentials (for public buckets)
+            s3_client = boto3.client('s3', region_name=region)
+        
+        bucket = s3_config['bucket']
+        prefix = s3_config.get('key_prefix', 'snapshots/')
+        s3_key = f"{prefix}{filename}"
+        
+        # Download file content directly to memory
+        response = s3_client.get_object(Bucket=bucket, Key=s3_key)
+        content = response['Body'].read()
+        
+        # Parse JSON from memory
+        return json.loads(content.decode('utf-8'))
+    except Exception as e:
+        print(f"[!] Error loading {filename} from S3: {e}")
+        return None
+
+
 def download_snapshot_from_s3(s3_config: Dict[str, Any], filename: str, local_path: str) -> bool:
-    """Download a snapshot file from S3 to local path."""
+    """Download a snapshot file from S3 to local path. (Deprecated - use load_snapshot_from_s3 for in-memory loading)"""
     try:
         import boto3
         from pathlib import Path
@@ -449,38 +492,34 @@ def load_snapshot_file(path: str) -> Optional[Dict[str, Any]]:
 
 
 def load_all_snapshots(local_path: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Load snapshots from S3 (if configured) and local files, optionally limited to most recent N files."""
+    """Load snapshots from S3 (if configured) directly into memory, or from local files.
+    
+    Note: When S3 is configured, snapshots are loaded directly into memory without disk caching
+    to protect data. Only thumbnails are cached to disk for performance.
+    Local snapshots are only used when S3 is not configured (for development/data collection).
+    """
     result: List[Dict[str, Any]] = []
     
-    # Try S3 first if configured
+    # Check if S3 is configured - if so, load only from S3 (no local files)
     s3_config = load_s3_config()
     if s3_config and s3_config.get('use_s3'):
         try:
-            s3_files = list_s3_snapshots(s3_config, limit=limit * 2 if limit else None)  # Get more to account for local overlap
-            local_cache_dir = os.path.join(local_path, '.s3_cache')
-            os.makedirs(local_cache_dir, exist_ok=True)
+            s3_files = list_s3_snapshots(s3_config, limit=limit * 2 if limit else None)
             
             for filename in s3_files:
-                cache_path = os.path.join(local_cache_dir, filename)
-                # Download if not cached or cache is stale
-                if not os.path.exists(cache_path):
-                    download_snapshot_from_s3(s3_config, filename, cache_path)
-                
-                # Load from cache
-                snap = load_snapshot_file(cache_path)
+                # Load snapshot directly from S3 into memory (no disk caching)
+                snap = load_snapshot_from_s3(s3_config, filename)
                 if snap and isinstance(snap.get('categories', {}), dict):
                     result.append(snap)
         except Exception as e:
-            print(f"[!] S3 download failed, falling back to local: {e}")
-    
-    # Also load local snapshots (may overlap with S3, but that's fine - we'll deduplicate)
-    local_files = list_local_snapshots(local_path, limit=limit)
-    for fp in local_files:
-        snap = load_snapshot_file(fp)
-        if snap and isinstance(snap.get('categories', {}), dict):
-            # Check if we already have this snapshot (by timestamp)
-            timestamp = snap.get('timestamp')
-            if not any(r.get('timestamp') == timestamp for r in result):
+            print(f"[!] S3 load failed: {e}")
+            # Don't fall back to local - if S3 is configured, we should use S3 only
+    else:
+        # S3 not configured - load from local files (for development/data collection)
+        local_files = list_local_snapshots(local_path, limit=limit)
+        for fp in local_files:
+            snap = load_snapshot_file(fp)
+            if snap and isinstance(snap.get('categories', {}), dict):
                 result.append(snap)
     
     # Sort by timestamp, newest first, and apply limit

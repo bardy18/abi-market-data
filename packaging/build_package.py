@@ -20,14 +20,28 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 def embed_s3_credentials():
     """Embed S3 credentials into the s3_config.py file."""
-    # Load credentials from s3_config.json in packaging folder
-    config_path = Path(__file__).parent / 's3_config.json'
+    # Load credentials from s3_config.json - check packaging folder first, then root
+    packaging_dir = Path(__file__).parent
+    project_root = packaging_dir.parent
+    config_paths = [
+        packaging_dir / 's3_config.json',  # Preferred location
+        project_root / 's3_config.json',  # Fallback location
+    ]
     
-    if not config_path.exists():
-        print("[!] Warning: packaging/s3_config.json not found!")
+    config_path = None
+    for path in config_paths:
+        if path.exists():
+            config_path = path
+            break
+    
+    if not config_path:
+        print("[!] Warning: s3_config.json not found!")
         print("    The executable will not have embedded S3 credentials.")
-        print("    Copy packaging/s3_config.json.example to packaging/s3_config.json and fill in your credentials.")
-        print("    Users will need to provide their own s3_config.json in the project root if credentials are not embedded.")
+        print("    Create s3_config.json in either:")
+        print("      - packaging/s3_config.json (preferred)")
+        print("      - s3_config.json (project root)")
+        print("    Copy packaging/s3_config.json.example as a template.")
+        print("    Users will need to provide their own s3_config.json if credentials are not embedded.")
         return False
     
     try:

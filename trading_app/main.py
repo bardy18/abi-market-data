@@ -682,8 +682,157 @@ class DataTable(QtWidgets.QTableView):
             pass
 
 
+class LoadingScreen(QtWidgets.QWidget):
+    """Loading screen shown while snapshots are being downloaded from S3."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(QtCore.Qt.WindowType.Window | QtCore.Qt.WindowType.WindowStaysOnTopHint)
+        self.setWindowTitle('ABI Market Trading App - Loading')
+        self.setFixedSize(400, 200)
+        self.setStyleSheet('''
+            QWidget {
+                background-color: #0a0a0a;
+                color: #c0c0c0;
+            }
+        ''')
+        
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setAlignment(QtCore.Qt.AlignCenter)
+        layout.setSpacing(20)
+        
+        # Loading icon
+        self.icon_label = QtWidgets.QLabel('⏳', self)
+        self.icon_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.icon_label.setStyleSheet('font-size: 48px;')
+        layout.addWidget(self.icon_label)
+        
+        # Status text
+        self.status_label = QtWidgets.QLabel('Loading market data...', self)
+        self.status_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.status_label.setStyleSheet('font-size: 14px; color: #888888;')
+        layout.addWidget(self.status_label)
+        
+        # Progress bar
+        self.progress_bar = QtWidgets.QProgressBar(self)
+        self.progress_bar.setRange(0, 0)  # Indeterminate progress
+        self.progress_bar.setStyleSheet('''
+            QProgressBar {
+                border: 1px solid #333333;
+                border-radius: 4px;
+                text-align: center;
+                background-color: #1a1a1a;
+                height: 20px;
+            }
+            QProgressBar::chunk {
+                background-color: #00ff88;
+                border-radius: 3px;
+            }
+        ''')
+        layout.addWidget(self.progress_bar)
+        
+        # Center the window
+        self._center_window()
+    
+    def _center_window(self):
+        """Center the loading screen on the screen."""
+        screen = QtWidgets.QApplication.primaryScreen().geometry()
+        size = self.geometry()
+        self.move(
+            (screen.width() - size.width()) // 2,
+            (screen.height() - size.height()) // 2
+        )
+    
+    def update_status(self, message: str, progress: int = None):
+        """Update the status message and optionally set progress."""
+        self.status_label.setText(message)
+        if progress is not None:
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(progress)
+        QtWidgets.QApplication.processEvents()
+
+
+class SnapshotLoader(QtCore.QThread):
+    """Worker thread to load snapshots asynchronously."""
+    progress = QtCore.Signal(str, int)  # message, progress percentage
+    finished = QtCore.Signal(list)  # snapshots list
+    error = QtCore.Signal(str)  # error message
+    
+    def __init__(self, config_path: str, snapshots_path: str, limit: int):
+        super().__init__()
+        self.config_path = config_path
+        self.snapshots_path = snapshots_path
+        self.limit = limit
+    
+    def run(self):
+        """Load snapshots in background thread."""
+        try:
+            # Load config
+            self.progress.emit('Loading configuration...', 5)
+            cfg = utils.load_config(self.config_path)
+            
+            # Check if S3 is configured
+            s3_config = utils.load_s3_config()
+            if s3_config and s3_config.get('use_s3'):
+                self.progress.emit('Connecting to S3...', 10)
+                try:
+                    # List S3 snapshots
+                    s3_files = utils.list_s3_snapshots(s3_config, limit=self.limit * 2 if self.limit else None)
+                    total_files = len(s3_files)
+                    
+                    if total_files > 0:
+                        self.progress.emit(f'Loading {total_files} snapshots from S3...', 15)
+                        
+                        snapshots = []
+                        
+                        for idx, filename in enumerate(s3_files):
+                            # Load snapshot directly from S3 into memory (no disk caching)
+                            self.progress.emit(f'Loading {filename}...', 15 + int((idx / total_files) * 60))
+                            snap = utils.load_snapshot_from_s3(s3_config, filename)
+                            
+                            if snap and isinstance(snap.get('categories', {}), dict):
+                                snapshots.append(snap)
+                            
+                            # Update progress
+                            progress_pct = 15 + int(((idx + 1) / total_files) * 60)
+                            self.progress.emit(f'Processing snapshots... ({idx + 1}/{total_files})', progress_pct)
+                        
+                        self.progress.emit(f'Loaded {len(snapshots)} snapshots from S3', 75)
+                    else:
+                        self.progress.emit('No snapshots found in S3', 50)
+                        snapshots = []
+                except Exception as e:
+                    self.progress.emit(f'S3 load failed, trying local files...', 50)
+                    # Fall through to local loading
+                    snapshots = []
+            else:
+                self.progress.emit('Loading local snapshots...', 20)
+                snapshots = []
+            
+            # Only load local snapshots if S3 is not configured
+            # (When S3 is configured, we load only from S3 to protect data)
+            if not (s3_config and s3_config.get('use_s3')):
+                self.progress.emit('Loading local snapshots...', 80)
+                local_files = utils.list_local_snapshots(self.snapshots_path, limit=self.limit)
+                for fp in local_files:
+                    snap = utils.load_snapshot_file(fp)
+                    if snap and isinstance(snap.get('categories', {}), dict):
+                        snapshots.append(snap)
+            
+            # Sort by timestamp, newest first, and apply limit
+            self.progress.emit('Processing data...', 90)
+            snapshots.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+            if self.limit and self.limit > 0:
+                snapshots = snapshots[:self.limit]
+            
+            self.progress.emit(f'Loaded {len(snapshots)} snapshots', 100)
+            self.finished.emit(snapshots)
+            
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, snapshots: list = None):
         super().__init__()
         self.setWindowTitle('ABI Market Trading App')
         
@@ -693,10 +842,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cfg = utils.load_config(config_path)
         self._apply_dark_theme()
 
-        # Data - load limited number of recent snapshots
+        # Data - use provided snapshots or empty list
+        if snapshots is None:
+            snapshots = []
+        
         limit = self.cfg.max_snapshots_to_load
-        snapshots = utils.load_all_snapshots(self.cfg.snapshots_path, limit=limit)
-        print(f"Loaded {len(snapshots)} snapshots (limit: {limit})")
+        if snapshots:
+            print(f"Loaded {len(snapshots)} snapshots (limit: {limit})")
         df = utils.snapshots_to_dataframe(snapshots)
         self.df_all = utils.add_indicators(df, self.cfg.alerts.get('ma_window', 5))
 
@@ -1223,16 +1375,27 @@ class MainWindow(QtWidgets.QMainWindow):
                         if not found_path and thumb_hash:
                             s3_config = utils.load_s3_config()
                             if s3_config and s3_config.get('use_s3'):
+                                # Show loading indicator while downloading
+                                self.thumb_label.setText('⏳')
+                                self.thumb_label.setStyleSheet('color: #888888; font-size: 24px;')
+                                # Process events to ensure the UI updates immediately
+                                QtWidgets.QApplication.processEvents()
+                                
                                 # Build local path for thumbnail
                                 thumb_local_path = os.path.normpath(os.path.join(self.cfg.snapshots_path, 'thumbs', f"{thumb_hash}.png"))
                                 # Try to download from S3
                                 if utils.download_thumbnail_from_s3(s3_config, thumb_hash, thumb_local_path):
                                     if os.path.exists(thumb_local_path):
                                         found_path = thumb_local_path
+                                else:
+                                    # Download failed, clear loading message
+                                    self.thumb_label.setStyleSheet('')
                         
                         if found_path:
                             pix = QtGui.QPixmap(found_path)
                             if not pix.isNull():
+                                # Clear any loading styles
+                                self.thumb_label.setStyleSheet('')
                                 target_w = self.thumb_label.width()
                                 if pix.width() > target_w:
                                     scaled = pix.scaledToWidth(target_w, QtCore.Qt.TransformationMode.SmoothTransformation)
@@ -1242,8 +1405,11 @@ class MainWindow(QtWidgets.QMainWindow):
                                     # IMPORTANT: This line must be indented inside the else block above
                                     self.thumb_label.setPixmap(pix)
                             else:
+                                self.thumb_label.setStyleSheet('')
                                 self.thumb_label.setPixmap(QtGui.QPixmap())
                         else:
+                            # Clear loading styles if download failed or no thumbnail found
+                            self.thumb_label.setStyleSheet('')
                             self.thumb_label.setText('Thumbnail not found')
                 else:
                     self.thumb_label.setText('')
@@ -1901,10 +2067,110 @@ def main() -> int:
     app = QtWidgets.QApplication(sys.argv)
     # Load config relative to this script's location
     config_path = Path(__file__).parent / 'config.yaml'
-    win = MainWindow(str(config_path))
-    win.resize(1400, 700)
-    win.show()
-    return app.exec()
+    
+    # Load config to get snapshots path and limit
+    cfg = utils.load_config(str(config_path))
+    snapshots_path = cfg.snapshots_path
+    limit = cfg.max_snapshots_to_load
+    
+    # Check if we need to show loading screen
+    # Show loading if S3 is configured and we need to download, or if no snapshots exist locally
+    s3_config = utils.load_s3_config()
+    show_loading = False
+    
+    if s3_config and s3_config.get('use_s3'):
+        # Always show loading screen when S3 is configured since we load directly from S3
+        # (no disk caching, so we always need to download from S3)
+        show_loading = True
+    else:
+        # No S3 config - check if we have local snapshots
+        # If no local snapshots, loading will be fast, so skip loading screen
+        local_files = utils.list_local_snapshots(snapshots_path, limit=1)
+        has_local_snapshots = len(local_files) > 0
+        show_loading = False  # Local loading is fast, no need for loading screen
+    
+    if show_loading:
+        # Show loading screen
+        loading_screen = LoadingScreen()
+        loading_screen.show()
+        app.processEvents()
+        
+        # Create and start snapshot loader
+        loader = SnapshotLoader(str(config_path), snapshots_path, limit)
+        
+        def on_progress(message: str, progress: int):
+            loading_screen.update_status(message, progress)
+        
+        main_window = [None]  # Use list to allow modification in nested functions
+        
+        def on_finished(snapshots: list):
+            try:
+                # Create main window on main thread BEFORE closing loading screen
+                # This ensures the app has a window to show
+                main_window[0] = MainWindow(str(config_path), snapshots)
+                main_window[0].resize(1400, 700)
+                main_window[0].show()
+                # Close loading screen after main window is shown
+                loading_screen.close()
+                # Ensure the main window gets focus
+                main_window[0].raise_()
+                main_window[0].activateWindow()
+            except Exception as e:
+                print(f"[!] Error creating main window: {e}")
+                import traceback
+                traceback.print_exc()
+                # Try to show error - but keep loading screen open so app doesn't quit
+                try:
+                    QtWidgets.QMessageBox.critical(
+                        loading_screen, 
+                        'Error', 
+                        f'Failed to create main window:\n{e}\n\nCheck console for details.'
+                    )
+                except:
+                    pass
+                # Don't quit - let user see the error
+                loading_screen.update_status(f'Error: {str(e)}', None)
+        
+        def on_error(error_msg: str):
+            try:
+                loading_screen.update_status(f'Error: {error_msg}', None)
+                # Still show main window with empty data after a delay
+                def show_main():
+                    try:
+                        # Create main window BEFORE closing loading screen
+                        main_window[0] = MainWindow(str(config_path), [])
+                        main_window[0].resize(1400, 700)
+                        main_window[0].show()
+                        loading_screen.close()
+                        main_window[0].raise_()
+                        main_window[0].activateWindow()
+                    except Exception as e:
+                        print(f"[!] Error creating main window after error: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        # Keep loading screen open with error message
+                        loading_screen.update_status(f'Error: {error_msg} - Failed to create window: {e}', None)
+                QtCore.QTimer.singleShot(2000, show_main)
+            except Exception as e:
+                print(f"[!] Error in error handler: {e}")
+                import traceback
+                traceback.print_exc()
+                loading_screen.update_status(f'Fatal error: {str(e)}', None)
+        
+        loader.progress.connect(on_progress)
+        loader.finished.connect(on_finished)
+        loader.error.connect(on_error)
+        loader.start()
+        
+        # Run app - loading screen will close and main window will show when done
+        return app.exec()
+    else:
+        # Fast path: load snapshots synchronously (they're already cached)
+        snapshots = utils.load_all_snapshots(snapshots_path, limit=limit)
+        win = MainWindow(str(config_path), snapshots)
+        win.resize(1400, 700)
+        win.show()
+        return app.exec()
 
 
 if __name__ == '__main__':

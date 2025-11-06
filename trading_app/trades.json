@@ -7,6 +7,13 @@
     "income": 0.0
   },
   {
+    "itemKey": "Electronics:BP Machine#01001c3c3c18000003037969697901098f9a78",
+    "quantity": 5,
+    "expense": 16574.0,
+    "status": "2 - In Transit",
+    "income": 0.0
+  },
+  {
     "itemKey": "Electronics:Mobile Phone#01001818181800000303317131310101984e29",
     "quantity": 5,
     "expense": 49658.0,
@@ -49,13 +56,6 @@
     "income": 0.0
   },
   {
-    "itemKey": "Energy Items:Powerbank#0101003c3c0000000303017979390101986932",
-    "quantity": 5,
-    "expense": 13500.0,
-    "status": "3 - Stored",
-    "income": 0.0
-  },
-  {
     "itemKey": "Instruments:Gimbal#030118383c1800000303316169310101874a0e",
     "quantity": 5,
     "expense": 143155.0,
@@ -67,6 +67,13 @@
     "quantity": 5,
     "expense": 154709.0,
     "status": "3 - Stored",
+    "income": 0.0
+  },
+  {
+    "itemKey": "Energy Items:Powerbank#0101003c3c0000000303017979390101986932",
+    "quantity": 5,
+    "expense": 13500.0,
+    "status": "4 - For Sale",
     "income": 0.0
   },
   {
