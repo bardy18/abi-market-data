@@ -215,8 +215,6 @@ ABIMarketData/
 ├── packaging/                  # Build and deployment files
 │   ├── build_package.py       # Package builder (creates standalone executable)
 │   └── s3_config.json.example # Template for S3 credentials (copy to s3_config.json)
-├── tools/                      # Utility scripts
-│   └── sort_display_mappings.py # Sort display mappings alphabetically
 ├── requirements.txt           # Python dependencies
 ├── LICENSE                     # MIT License
 └── README.md                  # This file

@@ -505,17 +505,10 @@ def main():
     if download_url:
         print(f"\n[OK] Package uploaded successfully!")
         print(f"    Download URL: {download_url}")
-        print("\nNext steps:")
-        print("1. Update DOWNLOAD_URL in website/script.js with the URL above (if not already set)")
-        print("2. Deploy updated website")
     else:
         print("\n[!] Package built but not uploaded to S3")
         print("    Upload will be retried automatically on next build")
-        print("\nNext steps:")
-        print("1. Fix any upload issues (check AWS CLI, credentials, bucket permissions)")
-        print("2. Re-run build script to upload")
-        print("3. Update DOWNLOAD_URL in website/script.js with the S3 URL")
-        print("4. Deploy updated website")
+        print("    Please check AWS CLI, credentials, and bucket permissions")
     
     if credentials_embedded:
         print("\n[!] SECURITY REMINDER:")

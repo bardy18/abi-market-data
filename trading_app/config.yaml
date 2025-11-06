@@ -1,6 +1,6 @@
 # ABI Market Trading App Configuration
 snapshots_path: "snapshots"
-max_snapshots_to_load: 100  # Limit number of snapshots for performance
+max_snapshots_to_load: 50  # Limit number of snapshots for performance (newest only)
 
 # Price alert settings
 alerts:

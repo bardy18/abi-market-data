@@ -810,8 +810,8 @@ class SnapshotLoader(QtCore.QThread):
             if s3_config and s3_config.get('use_s3'):
                 self.progress.emit('Connecting to S3...', 10)
                 try:
-                    # List S3 snapshots
-                    s3_files = utils.list_s3_snapshots(s3_config, limit=self.limit * 2 if self.limit else None)
+                    # List S3 snapshots (already sorted newest first)
+                    s3_files = utils.list_s3_snapshots(s3_config, limit=self.limit)
                     total_files = len(s3_files)
                     
                     if total_files > 0:
@@ -961,7 +961,7 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.addWidget(QtWidgets.QLabel('Top Movers'))
         left_layout.addWidget(self.alerts_list)
 
-        # My Watchlist
+        # My Trades
         self.trades_list = QtWidgets.QListWidget(self)
         left_layout.addWidget(QtWidgets.QLabel('My Trades'))
         left_layout.addWidget(self.trades_list)
