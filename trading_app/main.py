@@ -1953,7 +1953,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     utils.update_trade(trade.get('itemKey'), {'income': income, 'status': '5 - Sold'})
                     self._refresh_trade_panels()
                     self._update_trades_widget()
-                self._update_top_stats()
+                    self._update_top_stats()
                 sell_btn.clicked.connect(on_sell)
 
             # Show Lost button if status is "2 - In Transit"
