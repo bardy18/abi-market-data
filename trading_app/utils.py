@@ -24,6 +24,22 @@ def resource_path(relative_path: str) -> Path:
         return base_path / relative_path
 
 
+def user_data_path(filename: str) -> Path:
+    """Get path to user data file (trades.json, blacklist.json).
+    
+    In PyInstaller bundle: uses directory where executable is located.
+    In development: uses trading_app directory.
+    """
+    if getattr(sys, 'frozen', False):
+        # Running as a PyInstaller bundle - use executable directory
+        # sys.executable is the path to the .exe file
+        exe_path = Path(sys.executable)
+        return exe_path.parent / filename
+    else:
+        # Running as a script - use trading_app directory
+        return Path(__file__).parent / filename
+
+
 # Display name mapping cache
 _display_mapping = None
 # Watchlist removed; trades replace it
@@ -53,7 +69,7 @@ def _display_mappings_path() -> Path:
 
 def _trades_path() -> Path:
     """Path to the trades.json file."""
-    return Path(__file__).parent / 'trades.json'
+    return user_data_path('trades.json')
 
 
 # All watchlist helpers removed
@@ -160,7 +176,7 @@ def list_completed_trades() -> List[Dict[str, Any]]:
 
 def _blacklist_path() -> Path:
     """Get the path to the blacklist.json file."""
-    return Path(__file__).parent / 'blacklist.json'
+    return user_data_path('blacklist.json')
 
 
 def load_blacklist() -> List[str]:
