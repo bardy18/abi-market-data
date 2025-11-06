@@ -4,6 +4,10 @@ import os
 from pathlib import Path
 from datetime import datetime, timezone
 
+
+# Import resource_path from utils
+from trading_app.utils import resource_path
+
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
@@ -1144,17 +1148,22 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _set_window_icon(self) -> None:
         """Try to load and set window icon from common locations."""
-        # Get the directory where this script is located
-        script_dir = Path(__file__).parent
         # Possible icon locations (check .ico first on Windows, then .png)
+        # In PyInstaller bundle, icon is in trading_app/ subdirectory
+        # In dev mode, icon is in trading_app/ directory
         icon_paths = [
-            script_dir / 'icon.ico',  # trading_app/icon.ico
-            script_dir / 'icon.png',  # trading_app/icon.png
-            script_dir.parent / 'icon.ico',  # abi-market-data/icon.ico
-            script_dir.parent / 'icon.png',  # abi-market-data/icon.png
-            script_dir.parent / 'assets' / 'icon.ico',  # abi-market-data/assets/icon.ico
-            script_dir.parent / 'assets' / 'icon.png',  # abi-market-data/assets/icon.png
+            resource_path('trading_app/icon.ico'),  # PyInstaller bundle or dev
+            resource_path('trading_app/icon.png'),  # PyInstaller bundle or dev
         ]
+        # Also check parent directory locations for dev mode
+        if not getattr(sys, 'frozen', False):
+            script_dir = Path(__file__).parent
+            icon_paths.extend([
+                script_dir.parent / 'icon.ico',  # abi-market-data/icon.ico
+                script_dir.parent / 'icon.png',  # abi-market-data/icon.png
+                script_dir.parent / 'assets' / 'icon.ico',  # abi-market-data/assets/icon.ico
+                script_dir.parent / 'assets' / 'icon.png',  # abi-market-data/assets/icon.png
+            ])
         
         for icon_path in icon_paths:
             if icon_path.exists():
@@ -2065,8 +2074,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
 def main() -> int:
     app = QtWidgets.QApplication(sys.argv)
-    # Load config relative to this script's location
-    config_path = Path(__file__).parent / 'config.yaml'
+    # Load config - works in both dev and PyInstaller bundle
+    config_path = resource_path('trading_app/config.yaml')
     
     # Load config to get snapshots path and limit
     cfg = utils.load_config(str(config_path))

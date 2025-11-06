@@ -87,7 +87,7 @@ def embed_s3_credentials():
         with open(default_config_path, 'w', encoding='utf-8') as f:
             f.write(content)
         
-        print(f"[✓] Embedded S3 credentials for bucket: {bucket}")
+        print(f"[OK] Embedded S3 credentials for bucket: {bucket}")
         print(f"    Region: {region}")
         print(f"    Note: Credentials are obfuscated but can be extracted by determined reverse engineers")
         print(f"    Use a service account with minimal read-only permissions!")
@@ -120,7 +120,7 @@ def restore_s3_config_default():
             with open(default_config_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             
-            print("[✓] Restored s3_config.py to original state")
+            print("[OK] Restored s3_config.py to original state")
     except Exception as e:
         print(f"[!] Warning: Could not restore s3_config.py: {e}")
 
@@ -138,8 +138,8 @@ def create_empty_json_files(output_dir: Path):
     with open(blacklist_file, 'w', encoding='utf-8') as f:
         json.dump({'items': []}, f, indent=2, ensure_ascii=False)
     
-    print(f"[✓] Created {trades_file.name}")
-    print(f"[✓] Created {blacklist_file.name}")
+    print(f"[OK] Created {trades_file.name}")
+    print(f"[OK] Created {blacklist_file.name}")
 
 
 def create_pyinstaller_spec():
@@ -204,11 +204,13 @@ exe = EXE(
 )
 '''
     
-    spec_path = PROJECT_ROOT / 'ABI_Trading_Platform.spec'
+    # Store spec file in packaging folder to avoid cluttering root
+    packaging_dir = Path(__file__).parent
+    spec_path = packaging_dir / 'ABI_Trading_Platform.spec'
     with open(spec_path, 'w', encoding='utf-8') as f:
         f.write(spec_content)
     
-    print(f"[✓] Created {spec_path.name}")
+    print(f"[OK] Created {spec_path.name} in packaging folder")
     return spec_path
 
 
@@ -222,13 +224,14 @@ def build_executable():
     print("    This may take several minutes...\n")
     
     try:
-        # Change to project root for PyInstaller
+        # Change to project root for PyInstaller (PyInstaller needs to run from project root)
         original_cwd = os.getcwd()
         os.chdir(PROJECT_ROOT)
         
         try:
+            # Use absolute path to spec file since we're running from project root
             result = subprocess.run(
-                [sys.executable, '-m', 'PyInstaller', '--clean', str(spec_path.name)],
+                [sys.executable, '-m', 'PyInstaller', '--clean', str(spec_path)],
                 check=True,
                 capture_output=True,
                 text=True
@@ -254,12 +257,23 @@ def create_package():
     """Create the final distributable package."""
     dist_dir = PROJECT_ROOT / 'dist'
     build_dir = PROJECT_ROOT / 'build'
+    exe_file = dist_dir / 'ABI_Trading_Platform.exe'
     output_dir = dist_dir / 'ABI_Trading_Platform'
     
-    if not output_dir.exists():
-        print("[!] Executable not found in dist/ABI_Trading_Platform/")
+    # Check if executable exists
+    if not exe_file.exists():
+        print("[!] Executable not found: dist/ABI_Trading_Platform.exe")
         print("    Build may have failed.")
         return False
+    
+    # Create output directory for package
+    output_dir.mkdir(exist_ok=True)
+    
+    # Copy executable to package directory
+    import shutil
+    package_exe = output_dir / 'ABI_Trading_Platform.exe'
+    shutil.copy2(exe_file, package_exe)
+    print(f"[OK] Copied executable to package directory")
     
     # Create empty JSON files
     create_empty_json_files(output_dir)
@@ -279,26 +293,59 @@ FILES:
 
 USAGE:
 - Double-click ABI_Trading_Platform.exe to launch
-- The app will automatically download market data snapshots from S3
+- The app will automatically download market data snapshots
 - Your trades.json and blacklist.json will be saved in this folder
 - You can move these files if needed, but keep them with the .exe
 
 NOTES:
 - First launch may take a moment to download snapshots
 - Internet connection required to download market data
-- All market data is downloaded from centralized S3 storage
-- No configuration needed - S3 access is built-in
+- All market data is downloaded from centralized storage
+- No configuration needed - data access is built-in
 """
     
     readme_path = output_dir / 'README.txt'
     with open(readme_path, 'w', encoding='utf-8') as f:
         f.write(readme_content)
     
-    print(f"\n[✓] Package created in {output_dir}")
-    print("\n[*] To create a ZIP file, run:")
-    print(f"    python -m zipfile -c ABI_Trading_Platform.zip {output_dir}")
+    print(f"\n[OK] Package created in {output_dir}")
     
-    return True
+    # Create ZIP file for distribution
+    print("\n[*] Creating ZIP file for distribution...")
+    zip_path = dist_dir / 'ABI_Trading_Platform.zip'
+    
+    try:
+        import zipfile
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add all files from the package directory
+            for file_path in output_dir.rglob('*'):
+                if file_path.is_file():
+                    # Get relative path from output_dir
+                    arcname = file_path.relative_to(output_dir)
+                    zipf.write(file_path, arcname)
+                    print(f"    Added: {arcname}")
+        
+        zip_size_mb = zip_path.stat().st_size / (1024 * 1024)
+        print(f"\n[OK] ZIP file created: {zip_path.name} ({zip_size_mb:.1f} MB)")
+        
+        # Clean up temporary files: remove the package directory and standalone exe
+        print("\n[*] Cleaning up temporary files...")
+        try:
+            if output_dir.exists():
+                shutil.rmtree(output_dir)
+                print(f"[OK] Removed {output_dir.name} directory")
+            
+            if exe_file.exists():
+                exe_file.unlink()
+                print(f"[OK] Removed standalone {exe_file.name}")
+        except Exception as e:
+            print(f"[!] Warning: Could not clean up temporary files: {e}")
+        
+        return True
+    except Exception as e:
+        print(f"[!] Error creating ZIP file: {e}")
+        print("    Package is still available in the directory, but ZIP creation failed")
+        return True  # Don't fail the build if ZIP creation fails
 
 
 def main():
@@ -331,6 +378,16 @@ def main():
         # Create package
         if not create_package():
             return 1
+        
+        # Clean up build folder
+        print("\n[*] Cleaning up build folder...")
+        build_dir = PROJECT_ROOT / 'build'
+        if build_dir.exists():
+            try:
+                shutil.rmtree(build_dir)
+                print(f"[OK] Removed build folder")
+            except Exception as e:
+                print(f"[!] Warning: Could not remove build folder: {e}")
     finally:
         # Always restore the original file (remove embedded credentials from source)
         print("\n[*] Restoring source files...")
@@ -340,9 +397,8 @@ def main():
     print("Build complete!")
     print("="*60)
     print("\nNext steps:")
-    print("1. Test the executable in dist/ABI_Trading_Platform/")
-    print("2. Create a ZIP file for distribution")
-    print("3. Upload to your website")
+    print("1. Extract and test dist/ABI_Trading_Platform.zip")
+    print("2. Upload dist/ABI_Trading_Platform.zip to your website")
     
     if credentials_embedded:
         print("\n[!] SECURITY REMINDER:")

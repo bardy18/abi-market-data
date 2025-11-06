@@ -38,12 +38,11 @@ if %ERRORLEVEL% EQU 0 (
     echo Build completed successfully!
     echo ============================================================
     echo.
-    echo Package location: dist\ABI_Trading_Platform\
+    echo Package location: dist\ABI_Trading_Platform.zip
     echo.
     echo Next steps:
-    echo   1. Test the executable in dist\ABI_Trading_Platform\
-    echo   2. Create a ZIP file for distribution
-    echo   3. Upload to your website
+    echo   1. Extract and test dist\ABI_Trading_Platform.zip
+    echo   2. Upload dist\ABI_Trading_Platform.zip to your website
     echo.
 ) else (
     echo.

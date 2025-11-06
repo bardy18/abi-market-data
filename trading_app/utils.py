@@ -1,5 +1,6 @@
 """Trading app utilities for snapshot loading, analysis, and indicators."""
 import os
+import sys
 import json
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
@@ -8,6 +9,19 @@ from pathlib import Path
 import yaml
 import pandas as pd
 import numpy as np
+
+
+def resource_path(relative_path: str) -> Path:
+    """Get absolute path to resource, works for dev and PyInstaller."""
+    if getattr(sys, 'frozen', False):
+        # Running as a PyInstaller bundle
+        base_path = Path(sys._MEIPASS)
+        return base_path / relative_path
+    else:
+        # Running as a script
+        # If relative_path starts with a subdirectory, we need to go up from utils.py location
+        base_path = Path(__file__).parent.parent
+        return base_path / relative_path
 
 
 # Display name mapping cache
@@ -22,7 +36,7 @@ def load_display_mapping() -> Dict[str, str]:
     """Load the display to friendly name mapping from display_mappings.json"""
     global _display_mapping
     if _display_mapping is None:
-        mapping_file = Path(__file__).parent.parent / 'mappings' / 'display_mappings.json'
+        mapping_file = resource_path('mappings/display_mappings.json')
         if mapping_file.exists():
             with open(mapping_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -34,7 +48,7 @@ def load_display_mapping() -> Dict[str, str]:
 
 
 def _display_mappings_path() -> Path:
-    return Path(__file__).parent.parent / 'mappings' / 'display_mappings.json'
+    return resource_path('mappings/display_mappings.json')
 
 
 def _trades_path() -> Path:
