@@ -12,6 +12,7 @@ import shutil
 import json
 import base64
 from pathlib import Path
+from typing import Optional
 
 
 # Get the parent directory (abi-market-data root)
@@ -48,14 +49,14 @@ def embed_s3_credentials():
         with open(config_path, 'r') as f:
             config = json.load(f)
         
-        bucket = config.get('bucket')
+        bucket = config.get('snapshots_bucket')
         region = config.get('region', 'us-east-1')
         access_key = config.get('access_key')
         secret_key = config.get('secret_key')
         
         if not all([bucket, access_key, secret_key]):
             print("[!] Warning: packaging/s3_config.json missing required fields!")
-            print("    Required: bucket, access_key, secret_key")
+            print("    Required: snapshots_bucket, access_key, secret_key")
             return False
         
         # Obfuscate: base64 encode the credentials
@@ -253,6 +254,92 @@ def build_executable():
         return False
 
 
+def get_download_config():
+    """Get download bucket configuration from s3_config.json."""
+    packaging_dir = Path(__file__).parent
+    project_root = packaging_dir.parent
+    config_paths = [
+        packaging_dir / 's3_config.json',  # Preferred location
+        project_root / 's3_config.json',  # Fallback location
+    ]
+    
+    download_bucket = None
+    region = 'us-east-1'
+    
+    for config_path in config_paths:
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    download_bucket = config.get('download_bucket')
+                    region = config.get('region', 'us-east-1')
+                    
+                    if download_bucket:
+                        return download_bucket, region
+            except Exception:
+                continue
+    
+    # Default fallback
+    return 'abi-market-data-downloads', region
+
+
+def upload_package_to_s3(zip_path: Path) -> Optional[str]:
+    """Upload the ZIP package to S3 for public download.
+    
+    Returns the public download URL if successful, None otherwise.
+    """
+    import subprocess
+    
+    if not zip_path.exists():
+        print("[!] ZIP file not found for upload")
+        return None
+    
+    print("\n[*] Uploading package to S3...")
+    
+    # Get download configuration
+    download_bucket, region = get_download_config()
+    
+    # Build S3 key
+    s3_key = "ABI_Trading_Platform.zip"
+    s3_path = f"s3://{download_bucket}/{s3_key}"
+    
+    print(f"    Bucket: {download_bucket}")
+    print(f"    S3 Path: {s3_path}")
+    
+    try:
+        # Upload to S3 (bucket policy handles public access, no ACL needed)
+        result = subprocess.run(
+            ['aws', 's3', 'cp', str(zip_path), s3_path, '--profile', 'abi'],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        
+        # Build public URL
+        if region == 'us-east-1':
+            download_url = f"https://{download_bucket}.s3.amazonaws.com/{s3_key}"
+        else:
+            download_url = f"https://{download_bucket}.s3.{region}.amazonaws.com/{s3_key}"
+        
+        print(f"[OK] Upload completed successfully!")
+        print(f"    Download URL: {download_url}")
+        return download_url
+        
+    except subprocess.CalledProcessError as e:
+        print(f"[!] Upload failed: {e}")
+        print("    Please check:")
+        print("      - AWS CLI is installed: aws --version")
+        print("      - AWS credentials are configured: aws configure list")
+        print("      - Bucket name is correct and exists")
+        print("      - You have write permissions to the bucket")
+        print("      - Bucket policy allows public read access")
+        return None
+    except FileNotFoundError:
+        print("[!] AWS CLI not found. Install it to enable automatic upload.")
+        print("    Install AWS CLI: https://aws.amazon.com/cli/")
+        return None
+
+
 def create_package():
     """Create the final distributable package."""
     dist_dir = PROJECT_ROOT / 'dist'
@@ -335,11 +422,11 @@ USAGE:
         except Exception as e:
             print(f"[!] Warning: Could not clean up temporary files: {e}")
         
-        return True
+        return zip_path
     except Exception as e:
         print(f"[!] Error creating ZIP file: {e}")
         print("    Package is still available in the directory, but ZIP creation failed")
-        return True  # Don't fail the build if ZIP creation fails
+        return None
 
 
 def main():
@@ -364,14 +451,38 @@ def main():
         print("    Users will need to provide s3_config.json in the project root")
         print("    or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables")
     
+    download_url = None
     try:
         # Build executable
         if not build_executable():
             return 1
         
         # Create package
-        if not create_package():
+        zip_path = create_package()
+        if not zip_path:
             return 1
+        
+        # Upload to S3
+        download_url = upload_package_to_s3(zip_path)
+        
+        # Clean up dist folder after successful upload
+        if download_url:
+            print("\n[*] Cleaning up dist folder...")
+            dist_dir = PROJECT_ROOT / 'dist'
+            try:
+                if zip_path.exists():
+                    zip_path.unlink()
+                    print(f"[OK] Removed {zip_path.name}")
+                if dist_dir.exists() and not any(dist_dir.iterdir()):
+                    dist_dir.rmdir()
+                    print(f"[OK] Removed empty dist folder")
+                elif dist_dir.exists():
+                    # Check if there are any remaining files
+                    remaining = list(dist_dir.iterdir())
+                    if remaining:
+                        print(f"[*] Note: {len(remaining)} file(s) remain in dist folder")
+            except Exception as e:
+                print(f"[!] Warning: Could not clean up dist folder: {e}")
         
         # Clean up build folder
         print("\n[*] Cleaning up build folder...")
@@ -390,9 +501,21 @@ def main():
     print("\n" + "="*60)
     print("Build complete!")
     print("="*60)
-    print("\nNext steps:")
-    print("1. Extract and test dist/ABI_Trading_Platform.zip")
-    print("2. Upload dist/ABI_Trading_Platform.zip to your website")
+    
+    if download_url:
+        print(f"\n[OK] Package uploaded successfully!")
+        print(f"    Download URL: {download_url}")
+        print("\nNext steps:")
+        print("1. Update DOWNLOAD_URL in website/script.js with the URL above (if not already set)")
+        print("2. Deploy updated website")
+    else:
+        print("\n[!] Package built but not uploaded to S3")
+        print("    Upload will be retried automatically on next build")
+        print("\nNext steps:")
+        print("1. Fix any upload issues (check AWS CLI, credentials, bucket permissions)")
+        print("2. Re-run build script to upload")
+        print("3. Update DOWNLOAD_URL in website/script.js with the S3 URL")
+        print("4. Deploy updated website")
     
     if credentials_embedded:
         print("\n[!] SECURITY REMINDER:")

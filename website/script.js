@@ -1,5 +1,10 @@
 // Smooth scroll and download button handler
 
+// ============================================================
+// CONFIGURATION: S3 download URL
+// ============================================================
+const DOWNLOAD_URL = 'https://abi-market-data-downloads.s3.us-east-1.amazonaws.com/ABI_Trading_Platform.zip';
+
 document.addEventListener('DOMContentLoaded', function() {
     // Smooth scroll for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -50,19 +55,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const downloadBtn = document.getElementById('download-btn');
     if (downloadBtn) {
         downloadBtn.addEventListener('click', function(e) {
-            // Update this with your actual download URL
-            const downloadUrl = 'ABI_Trading_Platform.zip';
-            
-            // You can add analytics tracking here
-            console.log('Download initiated');
-            
-            // If file doesn't exist, show a message
-            // In production, replace with actual download link
-            // window.location.href = downloadUrl;
-            
-            // For now, show an alert
-            alert('Download link will be active once the package is built and uploaded.\n\nTo build the package, run:\nscripts\\build_package.bat');
+            if (DOWNLOAD_URL) {
+                // Redirect to S3 download URL
+                window.location.href = DOWNLOAD_URL;
+                console.log('Download initiated:', DOWNLOAD_URL);
+            } else {
+                // Show alert if URL not configured
+                e.preventDefault();
+                alert('Download link not configured.\n\nTo set up:\n1. Build the package: scripts\\build_package.bat\n   (Upload to S3 happens automatically)\n2. Update DOWNLOAD_URL in website/script.js with the URL from build output');
+            }
         });
+        
+        // Update href if DOWNLOAD_URL is set
+        if (DOWNLOAD_URL) {
+            downloadBtn.href = DOWNLOAD_URL;
+        }
     }
 
     // Add fade-in animation on scroll

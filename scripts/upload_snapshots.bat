@@ -33,14 +33,14 @@ set CONFIG_FILE_ROOT=..\s3_config.json
 REM Try packaging folder first (preferred location)
 if exist "%CONFIG_FILE_PACKAGING%" (
     REM Use PowerShell to extract bucket name from JSON
-    for /f "delims=" %%i in ('powershell -Command "(Get-Content '%CONFIG_FILE_PACKAGING%' | ConvertFrom-Json).bucket"') do set BUCKET_NAME=%%i
+    for /f "delims=" %%i in ('powershell -Command "(Get-Content '%CONFIG_FILE_PACKAGING%' | ConvertFrom-Json).snapshots_bucket"') do set BUCKET_NAME=%%i
 )
 
 REM Fall back to root if not found in packaging folder
 if "%BUCKET_NAME%"=="" (
     if exist "%CONFIG_FILE_ROOT%" (
         REM Use PowerShell to extract bucket name from JSON
-        for /f "delims=" %%i in ('powershell -Command "(Get-Content '%CONFIG_FILE_ROOT%' | ConvertFrom-Json).bucket"') do set BUCKET_NAME=%%i
+        for /f "delims=" %%i in ('powershell -Command "(Get-Content '%CONFIG_FILE_ROOT%' | ConvertFrom-Json).snapshots_bucket"') do set BUCKET_NAME=%%i
     )
 )
 

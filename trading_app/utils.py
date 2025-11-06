@@ -303,6 +303,9 @@ def load_s3_config() -> Optional[Dict[str, Any]]:
                     config = json.load(f)
                     config['use_s3'] = True
                     config.setdefault('key_prefix', 'snapshots/')
+                    # Normalize: map snapshots_bucket to bucket for internal use
+                    if 'snapshots_bucket' in config:
+                        config['bucket'] = config['snapshots_bucket']
                     return config
             except Exception:
                 continue

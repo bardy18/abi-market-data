@@ -40,12 +40,24 @@ Then visit `http://localhost:8000`
 
 ### Update Download Link
 
-In `script.js`, update the download URL:
-```javascript
-const downloadUrl = 'https://your-domain.com/downloads/ABI_Trading_Platform.zip';
-```
+The download link is configured in `script.js` using the `DOWNLOAD_URL` constant:
 
-Or in `index.html`, update the download button href directly.
+1. **Build the package**:
+   ```bash
+   scripts\build_package.bat
+   ```
+
+2. **Upload to S3**:
+   Upload happens automatically during the build process. The download URL will be displayed in the build output.
+
+3. **Update `script.js`**:
+   ```javascript
+   const DOWNLOAD_URL = 'https://your-bucket.s3.region.amazonaws.com/path/ABI_Trading_Platform.zip';
+   ```
+
+The upload script uses:
+- Separate download bucket (configure `download_bucket` in `s3_config.json`)
+- Default bucket: `abi-market-data-downloads` (if not configured)
 
 ### Update Community Links
 
