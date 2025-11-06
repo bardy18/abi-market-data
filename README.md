@@ -91,7 +91,10 @@ The GUI lets you:
 - Track trends and volatility with moving averages
 - Monitor price changes and ranges
 - Set custom display names for items (double-click to edit)
-- Track personal trades and blacklist items
+- Track personal trades from purchase to sale with status management
+- Blacklist items you're not interested in
+- View trade statistics (Total Expenses, Income, Gross, ROI) in the top bar
+- See "Top Movers" - items with significant price changes
 
 ## Recommended Scanning Schedule
 
@@ -142,10 +145,10 @@ This saves you from manually editing the JSON file later!
 The platform supports centralized data sharing via AWS S3:
 
 - **Upload Snapshots**: Use `scripts/upload_snapshots.bat` to sync snapshots and thumbnails to S3 using AWS CLI. This syncs your local `snapshots/` folder (including `thumbs/` subfolder) to S3, with your local folder as the master (deletes files in S3 that don't exist locally).
-- **Download from S3**: The trading app automatically downloads snapshots and thumbnails from S3
+- **Download from S3**: The trading app automatically downloads the newest 50 snapshots and thumbnails from S3 on startup
 - **Private Bucket**: Uses IAM service account credentials (read-only) embedded in the executable
 - **Override Credentials**: Users can override embedded credentials by:
-  - Creating `s3_config.json` in the project root with their own credentials
+  - Creating `s3_config.json` in the project root (or executable directory for standalone builds) with their own credentials
   - Setting `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables
   - Setting `S3_BUCKET_NAME` and `AWS_REGION` environment variables
 
@@ -166,20 +169,35 @@ python packaging/build_package.py
 
 This creates a distributable package with:
 - Standalone executable (no Python installation needed)
-- Empty `trades.json` and `blacklist.json` for user-specific data
+- Empty `trades.json` and `blacklist.json` for user-specific data (saved in executable directory)
 - Automatic S3 snapshot and thumbnail downloads
 - Embedded S3 credentials (obfuscated) for seamless access
+- Automatic upload to S3 download bucket (if configured)
 
-**Note**: Before building, create `packaging/s3_config.json` from `packaging/s3_config.json.example` with your AWS credentials.
+**Note**: 
+- Before building, create `packaging/s3_config.json` from `packaging/s3_config.json.example` with your AWS credentials.
+- User data files (`trades.json`, `blacklist.json`) are saved in the same directory as the executable, so users can move the executable folder without losing their data.
+- The build script automatically uploads the package to S3 for website distribution.
 
 ### Website
 
 A professional website is included in the `website/` folder for:
 - Downloading the trading platform
 - Community engagement
+- Educational content (Merchant Loop guide, Investment Theory)
 - Messaging to game developers
 
-See `website/README.md` for deployment instructions.
+**Deploy the website**:
+```bash
+scripts\deploy_website.bat
+```
+
+This syncs the website folder to S3 bucket `abi-market-data-web` (static web hosting enabled). The script uses AWS CLI with the `abi` profile.
+
+**Requirements**:
+- AWS CLI installed and configured
+- IAM permissions for S3 bucket write access
+- Bucket policy configured for public read access
 
 ## Project Structure
 
@@ -201,7 +219,8 @@ ABIMarketData/
 │   ├── capture_market_data.bat  # Windows launcher for collector
 │   ├── view_market_data.bat     # Windows launcher for GUI
 │   ├── upload_snapshots.bat     # S3 sync script
-│   └── build_package.bat        # Package builder launcher
+│   ├── build_package.bat        # Package builder launcher
+│   └── deploy_website.bat       # Website deployment script
 ├── snapshots/                   # Market data snapshots
 │   ├── YYYY-MM-DD_HH-MM.json    # Snapshot files
 │   └── thumbs/                  # Thumbnail images used by the GUI
@@ -209,11 +228,12 @@ ABIMarketData/
 │   ├── index.html             # Main website page
 │   ├── styles.css             # Styling
 │   ├── script.js              # Interactive features
-│   ├── images/                # Website images
-│   │   └── app-screenshot.png # Application screenshot
-│   └── README.md              # Website deployment guide
+│   ├── favicon.ico             # Website favicon
+│   └── images/                # Website images
+│       └── app-screenshot.png # Application screenshot
 ├── packaging/                  # Build and deployment files
 │   ├── build_package.py       # Package builder (creates standalone executable)
+│   ├── ABI_Trading_Platform.spec # PyInstaller spec file (auto-generated)
 │   └── s3_config.json.example # Template for S3 credentials (copy to s3_config.json)
 ├── requirements.txt           # Python dependencies
 ├── LICENSE                     # MIT License
@@ -258,7 +278,7 @@ snapshots/
   ...
 ```
 
-The Trading App loads ALL snapshots automatically for historical analysis. Each item includes a `thumbHash`; the thumbnail image is saved at `snapshots/thumbs/<thumbHash>.png` and is displayed in the GUI. Thumbnails are automatically downloaded from S3 if not found locally.
+The Trading App loads the newest 50 snapshots automatically for historical analysis (configurable in `trading_app/config.yaml`). Snapshots are sorted by timestamp (newest first) before applying the limit. Each item includes a `thumbHash`; the thumbnail image is saved at `snapshots/thumbs/<thumbHash>.png` and is displayed in the GUI. Thumbnails are automatically downloaded from S3 if not found locally.
 
 ## Configuration
 
@@ -272,9 +292,11 @@ The Trading App loads ALL snapshots automatically for historical analysis. Each 
 
 ### Trading App Settings (`trading_app/config.yaml`)
 
-- **Max Snapshots**: Limit for loaded snapshots
+- **Max Snapshots**: Limit for loaded snapshots (default: 50, loads newest snapshots first)
 - **Alerts**: Price change thresholds
 - **Display**: UI preferences
+
+**Note**: The app loads only the newest 50 snapshots by default for performance. Snapshots are automatically sorted by timestamp (newest first) before applying the limit.
 
 ## Item Name Mapping
 
@@ -365,6 +387,19 @@ This is purely cosmetic - backend tracking still uses the exact `itemKey`.
 
 Thumbnails are de-duplicated automatically during capture; no manual cleanup is required.
 
+## Trade Management
+
+The trading app includes comprehensive trade tracking:
+
+- **Buy Items**: Click the "Buy" button on any item to record a purchase
+- **Track Status**: Manage trades through statuses: Purchased → In Transit → Stored → For Sale → Sold/Lost
+- **Record Sales**: Mark items as "Sold" and enter income to track profits
+- **View Statistics**: See total expenses, income, gross profit, and ROI in the top bar
+- **Monitor Active Trades**: View all active trades in the left panel
+- **Completed Trades**: Review completed trades with full profit/loss details
+
+All trade data is automatically saved and persists between sessions.
+
 ## What's Next?
 
 After your first few snapshots, you'll be able to:
@@ -373,6 +408,7 @@ After your first few snapshots, you'll be able to:
 - Find arbitrage opportunities
 - Get alerts on price spikes/drops
 - Calculate moving averages and volatility
+- Manage your trading portfolio effectively
 
 Happy trading! 🚀
 
@@ -387,24 +423,18 @@ Happy trading! 🚀
 ### Standalone Package
 
 - **No Installation Required**: PyInstaller creates a standalone executable
-- **User-Specific Data**: Each user gets their own `trades.json` and `blacklist.json`
+- **User-Specific Data**: Each user gets their own `trades.json` and `blacklist.json` saved in the executable directory
+- **Data Persistence**: User data persists between sessions - trades and blacklist are saved automatically
 - **Easy Distribution**: Package as ZIP for download
+- **Automatic Updates**: Downloads newest market data snapshots from S3 on startup
 
 ### Official Website
 
-- **Professional Design**: Modern, gaming-themed website
+- **Professional Design**: Modern, gaming-themed website with dark theme
+- **Educational Content**: Includes Merchant Loop guide and Investment Theory sections
 - **Dual Audience**: For traders and game developers
 - **Clear Messaging**: Emphasizes policy compliance and community spirit
-
-## Contributing
-
-Contributions welcome! Areas for improvement:
-- Support for other game resolutions
-- Additional trading metrics
-- Enhanced UI features
-- OCR accuracy improvements
-- Website enhancements
-- S3 integration improvements
+- **Easy Deployment**: Single script deployment to S3 static web hosting
 
 ## License
 
