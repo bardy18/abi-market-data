@@ -557,6 +557,44 @@ header h1 {
     font-style: italic;
 }
 
+/* Community Message Section */
+.community-message {
+    padding: 4rem 0;
+    background: var(--bg-darker);
+}
+
+.community-message h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    color: var(--primary-color);
+}
+
+.community-message-content {
+    max-width: 900px;
+    margin: 0 auto;
+    background: var(--card-bg);
+    padding: 3rem;
+    border-radius: 12px;
+    border: 2px solid var(--primary-color);
+    line-height: 1.8;
+}
+
+.community-message-content p {
+    margin-bottom: 1.5rem;
+    color: var(--text-primary);
+}
+
+.community-message-content strong {
+    color: var(--primary-color);
+}
+
+.community-message-content .signature {
+    margin-top: 2rem;
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
 /* For Tencent Section */
 .for-tencent {
     padding: 4rem 0;
