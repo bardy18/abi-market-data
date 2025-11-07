@@ -2067,58 +2067,68 @@ class MainWindow(QtWidgets.QMainWindow):
         self.active_scroll.setWidgetResizable(True)
         self.active_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.active_scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.active_scroll.setStyleSheet(
+            'QScrollArea { background-color: transparent; border: none; }'
+        )
         self.active_content = QtWidgets.QWidget(self)
+        self.active_content.setStyleSheet('QWidget { background-color: transparent; }')
         self.active_layout = QtWidgets.QVBoxLayout(self.active_content)
         self.active_layout.setContentsMargins(0, 0, 0, 0)
         self.active_layout.setSpacing(6)
         self.active_layout.addStretch(1)
         self.active_scroll.setWidget(self.active_content)
         self.active_scroll.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
-        panel_layout.addWidget(self.active_scroll, 1)
+        panel_layout.addWidget(self.active_scroll, 3)
 
         panel_layout.addWidget(QtWidgets.QLabel('Completed Trades'))
         self.completed_scroll = QtWidgets.QScrollArea(self)
         self.completed_scroll.setWidgetResizable(True)
         self.completed_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.completed_scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.completed_scroll.setStyleSheet(
+            'QScrollArea { background-color: transparent; border: none; }'
+        )
         self.completed_content = QtWidgets.QWidget(self)
+        self.completed_content.setStyleSheet('QWidget { background-color: transparent; }')
         self.completed_layout = QtWidgets.QVBoxLayout(self.completed_content)
         self.completed_layout.setContentsMargins(0, 0, 0, 0)
         self.completed_layout.setSpacing(6)
         self.completed_layout.addStretch(1)
         self.completed_scroll.setWidget(self.completed_content)
         self.completed_scroll.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
-        panel_layout.addWidget(self.completed_scroll, 1)
+        panel_layout.addWidget(self.completed_scroll, 2)
 
         main_layout.addWidget(panel, 1)
 
     def _make_trade_card(self, trade: dict, completed: bool = False) -> QtWidgets.QWidget:
         card = QtWidgets.QFrame(self)
         card.setFrameShape(QtWidgets.QFrame.NoFrame)
-        card.setStyleSheet('QFrame { background-color: #0a0a0a; border: none; }')
+        card.setStyleSheet('QFrame { background-color: #1a1a1a; border: none; }')
         v = QtWidgets.QVBoxLayout(card)
         v.setContentsMargins(8, 8, 8, 8)
-        # Omit item display title on the card; context is the selected item
-        # Status control: dropdown for active, label for completed (read-only)
-        curr = trade.get('status') or utils.TRADE_STATUSES[0]
-        if completed:
-            status_label = QtWidgets.QLabel(curr)
-            status_label.setStyleSheet('color: #c0c0c0; font-weight: bold;')
-            v.addWidget(status_label)
-        else:
+
+        status = str(trade.get('status') or utils.TRADE_STATUSES[0])
+
+        def parse_status_code(value: str) -> int:
+            try:
+                return int(str(value).split('-', 1)[0].strip())
+            except Exception:
+                return -1
+
+        status_code = parse_status_code(status)
+        if not completed:
             status_cb = QtWidgets.QComboBox(self)
-            # Only allow active statuses (1-4) to be selected directly
             for s in utils.TRADE_STATUSES[:4]:
                 status_cb.addItem(s)
-            # Block signals when setting initial value to prevent triggering update
             status_cb.blockSignals(True)
-            status_cb.setCurrentText(curr)
+            status_cb.setCurrentText(status)
             status_cb.blockSignals(False)
             status_cb.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
-            # Disable mouse wheel on combo box - only allow clicking to change values
-            def ignore_wheel_event(event):
-                event.ignore()  # Ignore wheel events so they don't change dropdown values
-            status_cb.wheelEvent = ignore_wheel_event
+
+            def ignore_wheel_event(event: QtGui.QWheelEvent) -> None:
+                event.ignore()
+
+            status_cb.wheelEvent = ignore_wheel_event  # type: ignore
             status_cb.setStyleSheet('''
                 QComboBox {
                     background-color: #0a0a0a;
@@ -2151,26 +2161,29 @@ class MainWindow(QtWidgets.QMainWindow):
                     }
                 ''')
             v.addWidget(status_cb)
+        else:
+            status_cb = None
 
-        # Rows container without borders
-        rows_container = QtWidgets.QVBoxLayout()
+        details_widget = QtWidgets.QWidget(self)
+        rows_container = QtWidgets.QVBoxLayout(details_widget)
         rows_container.setContentsMargins(0, 2, 0, 0)
         rows_container.setSpacing(2)
 
-        def make_row(label_text: str, value_text: str) -> None:
+        def add_row(target_layout: QtWidgets.QVBoxLayout, label_text: str, value_text: str) -> None:
             row_frame = QtWidgets.QFrame(self)
-            row_frame.setStyleSheet('QFrame { border: none; } QLabel { border: none; }')
-            h = QtWidgets.QHBoxLayout(row_frame)
-            h.setContentsMargins(0, 2, 0, 2)
-            h.setSpacing(6)
-            lab = QtWidgets.QLabel(label_text)
-            val = QtWidgets.QLabel(value_text)
-            lab.setStyleSheet('color: #888888;')
-            val.setStyleSheet('color: #c0c0c0;')
-            h.addWidget(lab, 0)
-            h.addStretch(1)
-            h.addWidget(val, 0)
-            rows_container.addWidget(row_frame)
+            row_frame.setFrameShape(QtWidgets.QFrame.NoFrame)
+            row_frame.setStyleSheet('QFrame { border: none; background-color: transparent; } QLabel { border: none; }')
+            layout = QtWidgets.QHBoxLayout(row_frame)
+            layout.setContentsMargins(0, 2, 0, 2)
+            layout.setSpacing(6)
+            label = QtWidgets.QLabel(label_text)
+            value = QtWidgets.QLabel(value_text)
+            label.setStyleSheet('color: #888888;')
+            value.setStyleSheet('color: #c0c0c0;')
+            layout.addWidget(label, 0)
+            layout.addStretch(1)
+            layout.addWidget(value, 0)
+            target_layout.addWidget(row_frame)
 
         qty = int(trade.get('quantity') or 0)
         expense = float(trade.get('expense') or 0.0)
@@ -2179,39 +2192,72 @@ class MainWindow(QtWidgets.QMainWindow):
         sell = (income / qty) if qty else 0.0
         profit = income - expense
         roi_pct = ((profit / expense) * 100.0) if expense > 0 else 0.0
-        status = trade.get('status') or utils.TRADE_STATUSES[0]
 
-        # Rows depend on state and status
         if completed:
-            # Read-only completed cards
-            if (trade.get('status') or '').startswith('6'):
-                # Lost: show quantity and expense
-                make_row('Qty', f"{qty}")
-                make_row('Expense', f"{expense:,.0f}")
+            details_widget.setVisible(False)
+            header = QtWidgets.QFrame(self)
+            header.setFrameShape(QtWidgets.QFrame.NoFrame)
+            header_layout = QtWidgets.QHBoxLayout(header)
+            header_layout.setContentsMargins(0, 0, 0, 0)
+            header_layout.setSpacing(6)
+            status_text = status.split('-', 1)[1].strip() if '-' in status else status
+            status_label = QtWidgets.QLabel(status_text)
+            status_label.setStyleSheet('color: #c0c0c0; font-weight: bold;')
+            header_layout.addWidget(status_label)
+            header_layout.addStretch(1)
+            if status_code == 5:
+                roi_color = '#00ff88' if roi_pct >= 0 else '#ff4444'
+                roi_label = QtWidgets.QLabel(f'{roi_pct:.0f}%')
+                roi_label.setStyleSheet(f'color: {roi_color}; font-weight: bold;')
+                header_layout.addWidget(roi_label)
+            toggle_btn = QtWidgets.QToolButton(self)
+            toggle_btn.setText('▸')
+            toggle_btn.setCheckable(True)
+            toggle_btn.setChecked(False)
+            toggle_btn.setAutoRaise(True)
+            toggle_btn.setStyleSheet('''
+                QToolButton {
+                    color: #888888;
+                    padding: 0px;
+                }
+                QToolButton:checked {
+                    color: #c0c0c0;
+                }
+            ''')
+            header_layout.addWidget(toggle_btn)
+            v.addWidget(header)
+
+            def update_details(checked: bool) -> None:
+                details_widget.setVisible(checked)
+                toggle_btn.setText('▾' if checked else '▸')
+
+            toggle_btn.toggled.connect(update_details)
+
+            if status_code == 6:
+                add_row(rows_container, 'Qty', f'{qty}')
+                add_row(rows_container, 'Expense', f'{expense:,.0f}')
             else:
-                # Sold: show full set
-                make_row('Qty', f"{qty}")
-                make_row('Expense', f"{expense:,.0f}")
-                make_row('Income', f"{income:,.0f}")
-                make_row('Buy', f"{buy:,.0f}")
-                make_row('Sell', f"{sell:,.0f}")
-                make_row('ROI', f"{roi_pct:.0f}%")
-                make_row('Gross', f"{profit:,.0f}")
+                add_row(rows_container, 'Qty', f'{qty}')
+                add_row(rows_container, 'Expense', f'{expense:,.0f}')
+                add_row(rows_container, 'Income', f'{income:,.0f}')
+                add_row(rows_container, 'Buy', f'{buy:,.0f}')
+                add_row(rows_container, 'Sell', f'{sell:,.0f}')
+                add_row(rows_container, 'ROI', f'{roi_pct:.0f}%')
+                add_row(rows_container, 'Gross', f'{profit:,.0f}')
         else:
-            # Active trade: include Buy row and Sell button (only if status is "4 - For Sale")
-            make_row('Qty', f"{qty}")
-            make_row('Expense', f"{expense:,.0f}")
-            make_row('Buy', f"{buy:,.0f}")
-            # Sell and Lost controls - always present to keep card height stable
-            action_row = QtWidgets.QFrame(self)
-            action_row.setStyleSheet('QFrame { border: none; }')
+            details_widget.setVisible(True)
+            add_row(rows_container, 'Qty', f'{qty}')
+            add_row(rows_container, 'Expense', f'{expense:,.0f}')
+            add_row(rows_container, 'Buy', f'{buy:,.0f}')
+
+            action_row = QtWidgets.QWidget(self)
             action_layout = QtWidgets.QHBoxLayout(action_row)
             action_layout.setContentsMargins(0, 6, 0, 0)
             action_layout.setSpacing(8)
             action_layout.addStretch(1)
+
             lost_btn = QtWidgets.QPushButton('Lost')
             lost_btn.setFixedWidth(70)
-            lost_btn.setEnabled(status == "2 - In Transit")
             lost_btn.setStyleSheet('''
                 QPushButton {
                     background-color: #1a1a1a;
@@ -2233,10 +2279,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     color: #444444;
                 }
             ''')
+            lost_btn.clicked.connect(lambda _=False, t=dict(trade): self._mark_trade_lost(t))
             action_layout.addWidget(lost_btn, 0)
+
             sell_btn = QtWidgets.QPushButton('Sold')
             sell_btn.setFixedWidth(70)
-            sell_btn.setEnabled(status == "4 - For Sale")
             sell_btn.setStyleSheet('''
                 QPushButton {
                     background-color: #1a1a1a;
@@ -2258,64 +2305,38 @@ class MainWindow(QtWidgets.QMainWindow):
                     color: #444444;
                 }
             ''')
+            sell_btn.clicked.connect(lambda _=False, t=dict(trade): self._mark_trade_sold(t))
             action_layout.addWidget(sell_btn, 0)
-            rows_container.addWidget(action_row)
-            def on_sell() -> None:
-                income_text, ok = QtWidgets.QInputDialog.getText(self, 'Sell', 'Total income:')
-                if not ok:
-                    return
-                try:
-                    income = float(str(income_text).replace(',', '').strip())
-                except ValueError:
-                    income = 0.0
-                utils.update_trade(trade.get('itemKey'), {'income': income, 'status': '5 - Sold'}, trade_id=trade.get('tradeId'))
-                self._refresh_trade_panels()
-                self._update_trades_widget()
-                self._update_top_stats()
-            sell_btn.clicked.connect(on_sell)
 
-            lost_btn.setEnabled(status == "2 - In Transit")
-            lost_btn.setStyleSheet('''
-                QPushButton {
-                    background-color: #1a1a1a;
-                    border: 1px solid #333333;
-                    border-radius: 4px;
-                    color: #ff4444;
-                }
-                QPushButton:hover {
-                    background-color: #2a2a2a;
-                    border-color: #555555;
-                    color: #ff6666;
-                }
-                QPushButton:pressed {
-                    background-color: #0a0a0a;
-                }
-                QPushButton:disabled {
-                    background-color: #0f0f0f;
-                    border-color: #222222;
-                    color: #444444;
-                }
-            ''')
-            def on_lost() -> None:
-                utils.update_trade(trade.get('itemKey'), {'status': '6 - Lost'}, trade_id=trade.get('tradeId'))
-                self._refresh_trade_panels()
-                self._update_trades_widget()
-            lost_btn.clicked.connect(on_lost)
+            def update_action_buttons(status_text: str) -> None:
+                code = parse_status_code(status_text)
+                lost_btn.setEnabled(code == 2)
+                sell_btn.setEnabled(code == 4)
 
-        v.addLayout(rows_container)
+            update_action_buttons(status)
 
-        if not completed:
-            # Capture itemKey and tradeId in closure to ensure we update the correct trade
-            item_key = trade.get('itemKey')
-            trade_id = trade.get('tradeId')
-            def on_status_changed() -> None:
-                new_status = status_cb.currentText()
-                if item_key:
-                    utils.update_trade(item_key, {'status': new_status}, trade_id=trade_id)
+            if status_cb is not None:
+
+                def on_status_changed(text: str) -> None:
+                    update_action_buttons(text)
+                    item_key = trade.get('itemKey')
+                    if not item_key:
+                        return
+                    utils.update_trade(
+                        item_key,
+                        {'status': text},
+                        trade_id=trade.get('tradeId'),
+                    )
                     self._refresh_trade_panels()
                     self._update_trades_widget()
                     self._update_top_stats()
-            status_cb.currentTextChanged.connect(on_status_changed)
+
+                status_cb.currentTextChanged.connect(on_status_changed)
+
+            rows_container.addWidget(action_row)
+
+        v.addWidget(details_widget)
+
         return card
 
     def _refresh_trade_panels(self) -> None:
@@ -2339,8 +2360,9 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             for t in active:
                 w = self._make_trade_card(t, completed=False)
-                w.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum)
-                self.active_layout.insertWidget(self.active_layout.count() - 1, w)
+                if w is not None:
+                    w.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum)
+                    self.active_layout.insertWidget(self.active_layout.count() - 1, w)
         # Completed trades
         while self.completed_layout.count() > 1:
             item = self.completed_layout.takeAt(0)
@@ -2358,8 +2380,9 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             for t in done:
                 w = self._make_trade_card(t, completed=True)
-                w.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum)
-                self.completed_layout.insertWidget(self.completed_layout.count() - 1, w)
+                if w is not None:
+                    w.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum)
+                    self.completed_layout.insertWidget(self.completed_layout.count() - 1, w)
 
     def _make_alert_icon(self, color: QtGui.QColor, direction: str = 'up') -> QtGui.QIcon:
         # Create a small triangle icon with the given color and orientation
@@ -2428,6 +2451,34 @@ class MainWindow(QtWidgets.QMainWindow):
             self.refresh_view()
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, 'Error', f'Failed to save mapping:\n{e}')
+
+    def _mark_trade_sold(self, trade: dict) -> None:
+        if not trade:
+            return
+        item_key = trade.get('itemKey')
+        trade_id = trade.get('tradeId')
+        income_text, ok = QtWidgets.QInputDialog.getText(self, 'Sell', 'Total income:')
+        if not ok:
+            return
+        try:
+            income = float(str(income_text).replace(',', '').strip())
+        except ValueError:
+            income = 0.0
+        if item_key:
+            utils.update_trade(item_key, {'income': income, 'status': '5 - Sold'}, trade_id=trade_id)
+            self._refresh_trade_panels()
+            self._update_trades_widget()
+            self._update_top_stats()
+
+    def _mark_trade_lost(self, trade: dict) -> None:
+        if not trade:
+            return
+        item_key = trade.get('itemKey')
+        trade_id = trade.get('tradeId')
+        if item_key:
+            utils.update_trade(item_key, {'status': '6 - Lost'}, trade_id=trade_id)
+            self._refresh_trade_panels()
+            self._update_trades_widget()
 
 
 def main() -> int:
