@@ -87,6 +87,10 @@ class TrendChart(QtWidgets.QWidget):
             self._cursor = None
         ax = self.figure.add_subplot(111, facecolor='#000000')
         self._ax = ax
+        try:
+            self.figure.subplots_adjust(left=0.14, right=0.995, top=0.88, bottom=0.15)
+        except Exception:
+            pass
         if df.empty:
             ax.set_title('No data', color='#c0c0c0')
         else:
@@ -105,6 +109,10 @@ class TrendChart(QtWidgets.QWidget):
                 self._scatter = ax.scatter(dfi['timestamp'], dfi['price'], s=60, color='#00ff88', 
                                            edgecolors='#000000', linewidths=1.5, zorder=2, alpha=0.8,
                                            picker=True, pickradius=5)
+                try:
+                    ax.margins(x=0.01, y=0.05)
+                except Exception:
+                    pass
                 # Store data points for hover lookup (dict mapping index to (ts, price, dt_str))
                 self._data_points = {}
                 # Get Eastern timezone
@@ -1102,7 +1110,7 @@ class MainWindow(QtWidgets.QMainWindow):
         chart_row = QtWidgets.QWidget(self)
         row_layout = QtWidgets.QHBoxLayout(chart_row)
         row_layout.setContentsMargins(0, 0, 0, 0)
-        row_layout.setSpacing(8)
+        row_layout.setSpacing(0)
         row_layout.addWidget(self.chart, stretch=1)
         row_layout.addWidget(thumb_area, stretch=0)
         right_layout.addWidget(chart_row, 3)
@@ -2414,7 +2422,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     color: #444444;
                 }
             ''')
-            lost_btn.clicked.connect(lambda _=False, t=dict(trade): self._mark_trade_lost(t))
+            lost_btn.clicked.connect(lambda _=False, t=dict(trade): self._confirm_mark_trade_lost(t))
             action_layout.addWidget(lost_btn, 0)
 
             sell_btn = QtWidgets.QPushButton('Sold')
@@ -2610,6 +2618,30 @@ class MainWindow(QtWidgets.QMainWindow):
             utils.update_trade(item_key, {'status': '6 - Lost'}, trade_id=trade_id)
             self._refresh_trade_panels()
             self._update_trades_widget()
+
+    def _confirm_mark_trade_lost(self, trade: dict) -> None:
+        if not trade or not trade.get('itemKey'):
+            return
+        dlg = QtWidgets.QMessageBox(self)
+        dlg.setWindowTitle('Lost')
+        dlg.setText('You should only do this if the items are no longer in your posession.\nYou can change this later by updating your trades.json file.')
+        icon_candidates = [
+            resource_path('trading_app/icon.ico'),
+            resource_path('trading_app/icon.png'),
+        ]
+        for candidate in icon_candidates:
+            candidate_path = Path(candidate)
+            if candidate_path.exists():
+                icon = QtGui.QIcon(str(candidate_path))
+                if not icon.isNull():
+                    dlg.setWindowIcon(icon)
+                    break
+        confirm_btn = dlg.addButton("It's Really Lost", QtWidgets.QMessageBox.AcceptRole)
+        dlg.addButton(QtWidgets.QMessageBox.Cancel)
+        dlg.setDefaultButton(confirm_btn)
+        dlg.exec()
+        if dlg.clickedButton() is confirm_btn:
+            self._mark_trade_lost(trade)
 
 
 def main() -> int:
