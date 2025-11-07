@@ -1199,6 +1199,33 @@ class MainWindow(QtWidgets.QMainWindow):
                 color: #c0c0c0; 
                 border: 1px solid #333333; 
             }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                width: 0px;
+                height: 0px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #0a0a0a;
+                border: 1px solid #333333;
+                padding: 0;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 4px 6px;
+                background-color: #0a0a0a;
+                color: #c0c0c0;
+            }
+            QComboBox QAbstractItemView {
+                selection-background-color: #1a1a1a;
+                selection-color: #c0c0c0;
+            }
+            QComboBox QAbstractItemView::item:hover,
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #1a1a1a;
+                color: #c0c0c0;
+            }
             QHeaderView::section { 
                 background-color: #0a0a0a; 
                 color: #888888; 
@@ -1956,7 +1983,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._refresh_trade_panels()
         self._update_top_stats()
 
-    def _on_alert_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
+    def _handle_list_item_selection(self, item: QtWidgets.QListWidgetItem, source: str) -> None:
         if self._selection_guard:
             return
         item_key = item.data(QtCore.Qt.UserRole)
@@ -1974,17 +2001,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_view(skip_auto_selection=True)
         index = self._find_table_index(item_key)
         if index.isValid():
-            self._apply_selection_from_table_index(index, source='alerts', scroll=True)
+            self._apply_selection_from_table_index(index, source=source, scroll=True)
         else:
-            self._set_master_selection(item_key, source='alerts', table_index=None, scroll_table=False)
+            self._set_master_selection(item_key, source=source, table_index=None, scroll_table=False)
+
+    def _on_alert_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
+        self._handle_list_item_selection(item, 'alerts')
 
     def _on_alert_current_changed(self, current: QtWidgets.QListWidgetItem, prev: QtWidgets.QListWidgetItem) -> None:
         if current is not None:
             self._on_alert_clicked(current)
 
     def _on_trade_widget_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
-        # Reuse the same behavior as alert click for trade items
-        self._on_alert_clicked(item)
+        self._handle_list_item_selection(item, 'trades')
 
     def _on_trade_widget_current_changed(self, current: QtWidgets.QListWidgetItem, prev: QtWidgets.QListWidgetItem) -> None:
         if current is not None:
@@ -2090,6 +2119,37 @@ class MainWindow(QtWidgets.QMainWindow):
             def ignore_wheel_event(event):
                 event.ignore()  # Ignore wheel events so they don't change dropdown values
             status_cb.wheelEvent = ignore_wheel_event
+            status_cb.setStyleSheet('''
+                QComboBox {
+                    background-color: #0a0a0a;
+                    color: #c0c0c0;
+                    border: 1px solid #333333;
+                    padding: 2px 4px;
+                }
+                QComboBox::drop-down { border: none; }
+                QComboBox::down-arrow { image: none; }
+            ''')
+            status_cb.setItemDelegate(QtWidgets.QStyledItemDelegate(status_cb))
+            view = status_cb.view()
+            if isinstance(view, QtWidgets.QListView):
+                view.setStyleSheet('''
+                    QListView {
+                        background-color: #0a0a0a;
+                        border: 1px solid #333333;
+                        padding: 0;
+                        outline: none;
+                    }
+                    QListView::item {
+                        padding: 4px 6px;
+                        background-color: #0a0a0a;
+                        color: #c0c0c0;
+                    }
+                    QListView::item:hover,
+                    QListView::item:selected {
+                        background-color: #1a1a1a;
+                        color: #c0c0c0;
+                    }
+                ''')
             v.addWidget(status_cb)
 
         # Rows container without borders
@@ -2142,79 +2202,105 @@ class MainWindow(QtWidgets.QMainWindow):
             make_row('Qty', f"{qty}")
             make_row('Expense', f"{expense:,.0f}")
             make_row('Buy', f"{buy:,.0f}")
-            # Only show Sell button if status is "4 - For Sale"
-            if status == "4 - For Sale":
-                sell_row = QtWidgets.QFrame(self)
-                sell_row.setStyleSheet('QFrame { border: none; }')
-                h2 = QtWidgets.QHBoxLayout(sell_row)
-                h2.setContentsMargins(0, 2, 0, 2)
-                h2.addStretch(1)
-                sell_btn = QtWidgets.QPushButton('Sold')
-                sell_btn.setFixedWidth(60)
-                sell_btn.setStyleSheet('''
-                    QPushButton {
-                        background-color: #1a1a1a;
-                        border: 1px solid #333333;
-                        border-radius: 4px;
-                        color: #00ff88;
-                    }
-                    QPushButton:hover {
-                        background-color: #2a2a2a;
-                        border-color: #555555;
-                        color: #00ff88;
-                    }
-                    QPushButton:pressed {
-                        background-color: #0a0a0a;
-                    }
-                ''')
-                h2.addWidget(sell_btn, 0)
-                rows_container.addWidget(sell_row)
-                def on_sell() -> None:
-                    income_text, ok = QtWidgets.QInputDialog.getText(self, 'Sell', 'Total income:')
-                    if not ok:
-                        return
-                    try:
-                        income = float(str(income_text).replace(',', '').strip())
-                    except ValueError:
-                        income = 0.0
-                    utils.update_trade(trade.get('itemKey'), {'income': income, 'status': '5 - Sold'}, trade_id=trade.get('tradeId'))
-                    self._refresh_trade_panels()
-                    self._update_trades_widget()
-                    self._update_top_stats()
-                sell_btn.clicked.connect(on_sell)
+            # Sell and Lost controls - always present to keep card height stable
+            action_row = QtWidgets.QFrame(self)
+            action_row.setStyleSheet('QFrame { border: none; }')
+            action_layout = QtWidgets.QHBoxLayout(action_row)
+            action_layout.setContentsMargins(0, 6, 0, 0)
+            action_layout.setSpacing(8)
+            action_layout.addStretch(1)
+            lost_btn = QtWidgets.QPushButton('Lost')
+            lost_btn.setFixedWidth(70)
+            lost_btn.setEnabled(status == "2 - In Transit")
+            lost_btn.setStyleSheet('''
+                QPushButton {
+                    background-color: #1a1a1a;
+                    border: 1px solid #333333;
+                    border-radius: 4px;
+                    color: #ff4444;
+                }
+                QPushButton:hover {
+                    background-color: #2a2a2a;
+                    border-color: #555555;
+                    color: #ff6666;
+                }
+                QPushButton:pressed {
+                    background-color: #0a0a0a;
+                }
+                QPushButton:disabled {
+                    background-color: #0f0f0f;
+                    border-color: #222222;
+                    color: #444444;
+                }
+            ''')
+            action_layout.addWidget(lost_btn, 0)
+            sell_btn = QtWidgets.QPushButton('Sold')
+            sell_btn.setFixedWidth(70)
+            sell_btn.setEnabled(status == "4 - For Sale")
+            sell_btn.setStyleSheet('''
+                QPushButton {
+                    background-color: #1a1a1a;
+                    border: 1px solid #333333;
+                    border-radius: 4px;
+                    color: #00ff88;
+                }
+                QPushButton:hover {
+                    background-color: #2a2a2a;
+                    border-color: #555555;
+                    color: #00ff88;
+                }
+                QPushButton:pressed {
+                    background-color: #0a0a0a;
+                }
+                QPushButton:disabled {
+                    background-color: #0f0f0f;
+                    border-color: #222222;
+                    color: #444444;
+                }
+            ''')
+            action_layout.addWidget(sell_btn, 0)
+            rows_container.addWidget(action_row)
+            def on_sell() -> None:
+                income_text, ok = QtWidgets.QInputDialog.getText(self, 'Sell', 'Total income:')
+                if not ok:
+                    return
+                try:
+                    income = float(str(income_text).replace(',', '').strip())
+                except ValueError:
+                    income = 0.0
+                utils.update_trade(trade.get('itemKey'), {'income': income, 'status': '5 - Sold'}, trade_id=trade.get('tradeId'))
+                self._refresh_trade_panels()
+                self._update_trades_widget()
+                self._update_top_stats()
+            sell_btn.clicked.connect(on_sell)
 
-            # Show Lost button if status is "2 - In Transit"
-            if status == "2 - In Transit":
-                lost_row = QtWidgets.QFrame(self)
-                lost_row.setStyleSheet('QFrame { border: none; }')
-                h3 = QtWidgets.QHBoxLayout(lost_row)
-                h3.setContentsMargins(0, 2, 0, 2)
-                h3.addStretch(1)
-                lost_btn = QtWidgets.QPushButton('Lost')
-                lost_btn.setFixedWidth(60)
-                lost_btn.setStyleSheet('''
-                    QPushButton {
-                        background-color: #1a1a1a;
-                        border: 1px solid #333333;
-                        border-radius: 4px;
-                        color: #ff4444;
-                    }
-                    QPushButton:hover {
-                        background-color: #2a2a2a;
-                        border-color: #555555;
-                        color: #ff6666;
-                    }
-                    QPushButton:pressed {
-                        background-color: #0a0a0a;
-                    }
-                ''')
-                h3.addWidget(lost_btn, 0)
-                rows_container.addWidget(lost_row)
-                def on_lost() -> None:
-                    utils.update_trade(trade.get('itemKey'), {'status': '6 - Lost'}, trade_id=trade.get('tradeId'))
-                    self._refresh_trade_panels()
-                    self._update_trades_widget()
-                lost_btn.clicked.connect(on_lost)
+            lost_btn.setEnabled(status == "2 - In Transit")
+            lost_btn.setStyleSheet('''
+                QPushButton {
+                    background-color: #1a1a1a;
+                    border: 1px solid #333333;
+                    border-radius: 4px;
+                    color: #ff4444;
+                }
+                QPushButton:hover {
+                    background-color: #2a2a2a;
+                    border-color: #555555;
+                    color: #ff6666;
+                }
+                QPushButton:pressed {
+                    background-color: #0a0a0a;
+                }
+                QPushButton:disabled {
+                    background-color: #0f0f0f;
+                    border-color: #222222;
+                    color: #444444;
+                }
+            ''')
+            def on_lost() -> None:
+                utils.update_trade(trade.get('itemKey'), {'status': '6 - Lost'}, trade_id=trade.get('tradeId'))
+                self._refresh_trade_panels()
+                self._update_trades_widget()
+            lost_btn.clicked.connect(on_lost)
 
         v.addLayout(rows_container)
 
