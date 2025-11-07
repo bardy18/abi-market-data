@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "itemKey": "Household Items:Kamona Bird Plush#010118381c1c000003033161312101011c6649",
+    "quantity": 1,
+    "expense": 2345234.0,
+    "status": "1 - Purchased",
+    "income": 0.0,
+    "tradeId": "d22b9eb2-ca88-488a-a7e7-1d52ddf8a0ca",
+    "createdAt": 1762536202591
+  },
+  {
+    "itemKey": "Household Items:Hearing Aid#0101103c040c0000030331612d0925010f5493",
+    "quantity": 1,
+    "expense": 24352.0,
+    "status": "1 - Purchased",
+    "income": 0.0,
+    "tradeId": "83ea28ef-5023-4704-86ee-bad4e0f8dc00",
+    "createdAt": 1762536195106
+  }
+]

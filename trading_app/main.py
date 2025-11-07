@@ -1106,6 +1106,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Track current selected itemKey for button states
         self._current_item_key = None
+        self._selection_guard = False
+        self._pending_nav = None
+        self._keyboard_nav_timer = QtCore.QTimer(self)
+        self._keyboard_nav_timer.setSingleShot(True)
+        self._keyboard_nav_timer.timeout.connect(self._process_pending_nav)
+        QtWidgets.QApplication.instance().installEventFilter(self)
 
         # Right trading panel (Active / Completed)
         self._build_trading_panel(main_layout)
@@ -1301,6 +1307,326 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
         return latest
 
+    def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        if event.type() == QtCore.QEvent.Type.KeyPress:
+            if self._handle_key_press(event):
+                return True
+        return super().eventFilter(obj, event)
+
+    def _handle_key_press(self, event: QtGui.QKeyEvent) -> bool:
+        key = event.key()
+        nav_keys = {
+            QtCore.Qt.Key.Key_Up,
+            QtCore.Qt.Key.Key_Down,
+            QtCore.Qt.Key.Key_PageUp,
+            QtCore.Qt.Key.Key_PageDown,
+            QtCore.Qt.Key.Key_Home,
+            QtCore.Qt.Key.Key_End,
+        }
+        if key not in nav_keys:
+            return False
+        focus = QtWidgets.QApplication.focusWidget()
+        target = None
+        if focus in (self.table, self.table.viewport()):
+            target = 'table'
+        elif focus is self.alerts_list:
+            target = 'alerts'
+        elif focus is self.trades_list:
+            target = 'trades'
+        else:
+            return False
+        if key == QtCore.Qt.Key.Key_Up:
+            self._queue_keyboard_nav(target, 'relative', -1)
+        elif key == QtCore.Qt.Key.Key_Down:
+            self._queue_keyboard_nav(target, 'relative', 1)
+        elif key == QtCore.Qt.Key.Key_PageUp:
+            self._queue_keyboard_nav(target, 'relative', -self._page_step(target))
+        elif key == QtCore.Qt.Key.Key_PageDown:
+            self._queue_keyboard_nav(target, 'relative', self._page_step(target))
+        elif key == QtCore.Qt.Key.Key_Home:
+            self._queue_keyboard_nav(target, 'absolute', 'start')
+        elif key == QtCore.Qt.Key.Key_End:
+            self._queue_keyboard_nav(target, 'absolute', 'end')
+        else:
+            return False
+        return True
+
+    def _page_step(self, target: str) -> int:
+        if target == 'table':
+            try:
+                viewport_height = self.table.viewport().height()
+                row_height = self.table.verticalHeader().defaultSectionSize()
+                step = viewport_height // max(1, row_height)
+                return max(1, step)
+            except Exception:
+                return 10
+        widget = self.alerts_list if target == 'alerts' else self.trades_list
+        if widget.count() == 0:
+            return 1
+        try:
+            item_height = widget.sizeHintForRow(0)
+            step = widget.viewport().height() // max(1, item_height)
+            return max(1, step)
+        except Exception:
+            return 10
+
+    def _queue_keyboard_nav(self, target: str, kind: str, value: object) -> None:
+        if (
+            kind == 'relative'
+            and self._pending_nav
+            and self._pending_nav[0] == target
+            and self._pending_nav[1] == 'relative'
+        ):
+            self._pending_nav = (target, 'relative', int(self._pending_nav[2]) + int(value))
+        else:
+            self._pending_nav = (target, kind, value)
+        self._keyboard_nav_timer.start(30)
+
+    def _process_pending_nav(self) -> None:
+        if not self._pending_nav:
+            return
+        target, kind, value = self._pending_nav
+        self._pending_nav = None
+        if target == 'table':
+            self._navigate_table(kind, value)
+        elif target == 'alerts':
+            self._navigate_list(self.alerts_list, 'alerts', kind, value)
+        elif target == 'trades':
+            self._navigate_list(self.trades_list, 'trades', kind, value)
+
+    def _navigate_table(self, kind: str, value: object) -> None:
+        model = self.table.model_
+        if model is None or model.rowCount() == 0:
+            return
+        sel_model = self.table.selectionModel()
+        current = sel_model.currentIndex() if sel_model is not None else QtCore.QModelIndex()
+        if not current.isValid():
+            current = model.index(0, 0)
+        row = current.row() if current.isValid() else 0
+        if kind == 'relative':
+            row += int(value)
+        elif kind == 'absolute':
+            row = 0 if value == 'start' else model.rowCount() - 1
+        row = max(0, min(model.rowCount() - 1, row))
+        index = model.index(row, 0)
+        if index.isValid():
+            self._set_table_selection_for_index(index, scroll=True)
+
+    def _navigate_list(self, widget: QtWidgets.QListWidget, source: str, kind: str, value: object) -> None:
+        count = widget.count()
+        if count == 0:
+            return
+        current_row = widget.currentRow()
+        if current_row < 0:
+            current_row = 0
+        if kind == 'relative':
+            current_row += int(value)
+        elif kind == 'absolute':
+            current_row = 0 if value == 'start' else count - 1
+        current_row = max(0, min(count - 1, current_row))
+        widget.setCurrentRow(current_row)
+        item = widget.item(current_row)
+        if item:
+            item_key = item.data(QtCore.Qt.UserRole)
+            if item_key:
+                self._set_master_selection(item_key, source=source, table_index=None, scroll_table=True)
+
+    def _apply_selection_from_table_index(
+        self,
+        index: QtCore.QModelIndex,
+        *,
+        source: str,
+        scroll: bool,
+    ) -> None:
+        if not index.isValid():
+            return
+        if self._selection_guard:
+            return
+        model = self.table.model_
+        if model is None:
+            return
+        item = model.item(index.row(), 4)
+        if item is None:
+            return
+        item_key = item.data(QtCore.Qt.UserRole)
+        if not item_key:
+            return
+        self._set_master_selection(item_key, source=source, table_index=index, scroll_table=scroll)
+
+    def _find_table_index(self, item_key: str) -> QtCore.QModelIndex:
+        model = self.table.model_
+        if model is None:
+            return QtCore.QModelIndex()
+        for r in range(model.rowCount()):
+            try:
+                if model.item(r, 4).data(QtCore.Qt.UserRole) == item_key:
+                    return model.index(r, 0)
+            except Exception:
+                continue
+        return QtCore.QModelIndex()
+
+    def _set_table_selection_for_index(self, index: QtCore.QModelIndex, *, scroll: bool) -> None:
+        if not index.isValid():
+            return
+        sel_model = self.table.selectionModel()
+        if sel_model is None:
+            return
+        current_idx = sel_model.currentIndex()
+        if current_idx.isValid() and current_idx == index:
+            if scroll:
+                self.table.scrollTo(index, QtWidgets.QAbstractItemView.PositionAtCenter)
+            return
+        flags = QtCore.QItemSelectionModel.ClearAndSelect | QtCore.QItemSelectionModel.Rows
+        sel_model.select(index, flags)
+        sel_model.setCurrentIndex(index, QtCore.QItemSelectionModel.Current | QtCore.QItemSelectionModel.Rows)
+        self.table.setCurrentIndex(index)
+        if scroll:
+            self.table.scrollTo(index, QtWidgets.QAbstractItemView.PositionAtCenter)
+
+    def _sync_list_selection(self, widget: QtWidgets.QListWidget, item_key: str, *, active: bool) -> None:
+        if widget is None or active:
+            return
+        blocker = QtCore.QSignalBlocker(widget)
+        target_row = -1
+        for i in range(widget.count()):
+            try:
+                if widget.item(i).data(QtCore.Qt.UserRole) == item_key:
+                    target_row = i
+                    break
+            except Exception:
+                continue
+        if target_row >= 0:
+            widget.setCurrentRow(target_row)
+            widget.scrollToItem(widget.item(target_row), QtWidgets.QAbstractItemView.PositionAtCenter)
+        else:
+            widget.setCurrentRow(-1)
+        del blocker
+
+    def _update_selection_details(
+        self,
+        item_key: str,
+        table_index: Optional[QtCore.QModelIndex],
+    ) -> None:
+        self._update_buy_button_state()
+        self._update_blacklist_button_state()
+        model = self.table.model_
+        display_name = item_key or ''
+        if (table_index is None or not table_index.isValid()) and item_key:
+            table_index = self._find_table_index(item_key)
+        if table_index is not None and table_index.isValid() and model is not None:
+            row = table_index.row()
+            try:
+                display_name = model.item(row, 0).text()
+            except Exception:
+                pass
+        df_full = self._filtered_df()
+        if item_key:
+            self.chart.plot(df_full, item_key, display_name)
+        else:
+            self.chart.plot(df_full, display_name, display_name)
+        try:
+            self.thumb_label.setText('')
+            if not df_full.empty and item_key:
+                if 'itemKey' in df_full.columns:
+                    dfi = df_full[df_full['itemKey'] == item_key]
+                else:
+                    dfi = df_full[df_full['itemName'] == display_name]
+                if not dfi.empty:
+                    cand = []
+                    if 'thumbPath' in dfi.columns:
+                        for p in dfi['thumbPath']:
+                            if isinstance(p, str) and p.strip():
+                                cand.append(str(p))
+                    seen = set()
+                    cand = [x for x in cand if not (x in seen or seen.add(x))]
+                    found_path = ''
+                    thumb_hash = None
+                    if 'thumbHash' in dfi.columns:
+                        thumb_hash_values = dfi['thumbHash'].dropna().unique()
+                        if len(thumb_hash_values) > 0:
+                            thumb_hash = str(thumb_hash_values[0])
+                    for thumb_rel in reversed(cand):
+                        thumb_abs = thumb_rel
+                        if not os.path.isabs(thumb_abs):
+                            thumb_abs = os.path.normpath(os.path.join(self.cfg.snapshots_path, thumb_rel))
+                        if os.path.exists(thumb_abs):
+                            found_path = thumb_abs
+                            break
+                        alt_rel = thumb_rel.replace('/', os.sep).replace('\\', os.sep)
+                        thumb_abs = os.path.normpath(os.path.join(self.cfg.snapshots_path, alt_rel))
+                        if os.path.exists(thumb_abs):
+                            found_path = thumb_abs
+                            break
+                    if not found_path and thumb_hash:
+                        s3_config = utils.load_s3_config()
+                        if s3_config and s3_config.get('use_s3'):
+                            self.thumb_label.setText('⏳')
+                            self.thumb_label.setStyleSheet('color: #888888; font-size: 24px;')
+                            QtWidgets.QApplication.processEvents()
+                            thumb_local_path = os.path.normpath(os.path.join(self.cfg.snapshots_path, 'thumbs', f"{thumb_hash}.png"))
+                            if utils.download_thumbnail_from_s3(s3_config, thumb_hash, thumb_local_path):
+                                if os.path.exists(thumb_local_path):
+                                    found_path = thumb_local_path
+                            else:
+                                self.thumb_label.setStyleSheet('')
+                    if found_path:
+                        pix = QtGui.QPixmap(found_path)
+                        if not pix.isNull():
+                            self.thumb_label.setStyleSheet('')
+                            target_w = self.thumb_label.width()
+                            if pix.width() > target_w:
+                                scaled = pix.scaledToWidth(target_w, QtCore.Qt.TransformationMode.SmoothTransformation)
+                                self.thumb_label.setPixmap(scaled)
+                            else:
+                                self.thumb_label.setPixmap(pix)
+                        else:
+                            self.thumb_label.setStyleSheet('')
+                            self.thumb_label.setPixmap(QtGui.QPixmap())
+                    else:
+                        self.thumb_label.setStyleSheet('')
+                        self.thumb_label.setText('Thumbnail not found')
+                else:
+                    self.thumb_label.setText('')
+            else:
+                self.thumb_label.setText('')
+        except Exception:
+            self.thumb_label.setText('')
+        QtCore.QCoreApplication.processEvents()
+        QtCore.QTimer.singleShot(100, self.chart._show_latest_tooltip)
+        self._refresh_trade_panels()
+
+    def _set_master_selection(
+        self,
+        item_key: str,
+        *,
+        source: str,
+        table_index: Optional[QtCore.QModelIndex],
+        scroll_table: bool,
+    ) -> None:
+        if not item_key:
+            return
+        if self._selection_guard:
+            return
+        self._selection_guard = True
+        try:
+            self._current_item_key = item_key
+            if table_index is None or not table_index.isValid():
+                table_index = self._find_table_index(item_key)
+            if table_index is not None and table_index.isValid() and source not in ('table', 'table-keyboard'):
+                self._set_table_selection_for_index(table_index, scroll=scroll_table)
+            self._sync_list_selection(self.alerts_list, item_key, active=(source == 'alerts'))
+            self._sync_list_selection(self.trades_list, item_key, active=(source == 'trades'))
+            self._update_selection_details(item_key, table_index)
+        finally:
+            self._selection_guard = False
+
+    def _set_table_selection_for_key(self, key: str, *, scroll: bool = False) -> None:
+        if not key:
+            return
+        index = self._find_table_index(key)
+        if index.isValid():
+            self._set_table_selection_for_index(index, scroll=scroll)
+
     def refresh_view(self, skip_auto_selection: bool = False) -> None:
         # Preserve the top-visible row's itemKey and current selection
         viewport = self.table.viewport()
@@ -1312,8 +1638,8 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception:
                 top_key = ''
         sel_index = self.table.currentIndex()
-        sel_key = ''
-        if sel_index.isValid():
+        sel_key = self._current_item_key or ''
+        if not sel_key and sel_index.isValid():
             try:
                 sel_key = self.table.model_.item(sel_index.row(), 4).data(QtCore.Qt.UserRole)  # itemKey stored in ma% column (4)
             except Exception:
@@ -1374,138 +1700,29 @@ class MainWindow(QtWidgets.QMainWindow):
             self.table.setUpdatesEnabled(True)
         # Ensure a row is selected and chart/thumbnail shown (unless skipping auto-selection)
         if not skip_auto_selection:
-            if not df.empty:
+            target_index = QtCore.QModelIndex()
+            if sel_key:
+                target_index = self._find_table_index(sel_key)
+            if not target_index.isValid():
                 current = self.table.currentIndex()
-                if not current.isValid():
-                    # Select first row
-                    idx0 = self.table.model_.index(0, 0)
-                    if idx0.isValid():
-                        self.table.setCurrentIndex(idx0)
-                        self._on_table_clicked(idx0)
-                else:
-                    self._on_table_clicked(current)
+                if current.isValid():
+                    target_index = current
+            if not target_index.isValid() and self.table.model_.rowCount() > 0:
+                target_index = self.table.model_.index(0, 0)
+            if target_index.isValid():
+                self._apply_selection_from_table_index(target_index, source='refresh', scroll=False)
             else:
                 self.chart.plot(pd.DataFrame(), '', '')
 
     def _on_table_clicked(self, index: QtCore.QModelIndex) -> None:
-        # Chart the clicked row's item using itemKey
-        model = self.table.model_
-        if index.isValid():
-            row = index.row()
-            # Get itemKey from stored user data (stored in ma% column, index 4)
-            item_key = model.item(row, 4).data(QtCore.Qt.UserRole)
-            display_name = model.item(row, 0).text()  # item column
-            category = model.item(row, 1).text()  # category column
-            
-            # Store current item key for button states
-            self._current_item_key = item_key
-            self._update_buy_button_state()
-            self._update_blacklist_button_state()
-            
-            df_full = self._filtered_df()
-            if item_key:
-                # Use display name in chart title
-                self.chart.plot(df_full, item_key, display_name)
-            else:
-                # Fallback for old data without itemKey
-                self.chart.plot(df_full, display_name, display_name)
-
-            # Update thumbnail preview
-            try:
-                self.thumb_label.setText('')
-                # Find rows for this item
-                if not df_full.empty and 'thumbPath' in df_full.columns:
-                    dfi = df_full[df_full['itemKey'] == item_key] if 'itemKey' in df_full.columns else df_full[df_full['itemName'] == display_name]
-                    if not dfi.empty:
-                        # Gather candidate paths (skip NaN and empty strings)
-                        # Build candidate paths using derived thumbPath only
-                        cand = []
-                        if 'thumbPath' in dfi.columns:
-                            for p in dfi['thumbPath']:
-                                if isinstance(p, str) and p.strip():
-                                    cand.append(str(p))
-                        # De-duplicate preserving order
-                        seen = set()
-                        cand = [x for x in cand if not (x in seen or seen.add(x))]
-                        found_path = ''
-                        thumb_hash = None
-                        # Get thumbHash from the dataframe for S3 download if needed
-                        if 'thumbHash' in dfi.columns:
-                            thumb_hash_values = dfi['thumbHash'].dropna().unique()
-                            if len(thumb_hash_values) > 0:
-                                thumb_hash = str(thumb_hash_values[0])
-                        
-                        for thumb_rel in reversed(cand):
-                            # Try absolute first
-                            thumb_abs = thumb_rel
-                            if not os.path.isabs(thumb_abs):
-                                thumb_abs = os.path.normpath(os.path.join(self.cfg.snapshots_path, thumb_rel))
-                            if os.path.exists(thumb_abs):
-                                found_path = thumb_abs
-                                break
-                            # Try replacing slashes just in case
-                            alt_rel = thumb_rel.replace('/', os.sep).replace('\\', os.sep)
-                            thumb_abs = os.path.normpath(os.path.join(self.cfg.snapshots_path, alt_rel))
-                            if os.path.exists(thumb_abs):
-                                found_path = thumb_abs
-                                break
-                        
-                        # If not found locally, try downloading from S3
-                        if not found_path and thumb_hash:
-                            s3_config = utils.load_s3_config()
-                            if s3_config and s3_config.get('use_s3'):
-                                # Show loading indicator while downloading
-                                self.thumb_label.setText('⏳')
-                                self.thumb_label.setStyleSheet('color: #888888; font-size: 24px;')
-                                # Process events to ensure the UI updates immediately
-                                QtWidgets.QApplication.processEvents()
-                                
-                                # Build local path for thumbnail
-                                thumb_local_path = os.path.normpath(os.path.join(self.cfg.snapshots_path, 'thumbs', f"{thumb_hash}.png"))
-                                # Try to download from S3
-                                if utils.download_thumbnail_from_s3(s3_config, thumb_hash, thumb_local_path):
-                                    if os.path.exists(thumb_local_path):
-                                        found_path = thumb_local_path
-                                else:
-                                    # Download failed, clear loading message
-                                    self.thumb_label.setStyleSheet('')
-                        
-                        if found_path:
-                            pix = QtGui.QPixmap(found_path)
-                            if not pix.isNull():
-                                # Clear any loading styles
-                                self.thumb_label.setStyleSheet('')
-                                target_w = self.thumb_label.width()
-                                if pix.width() > target_w:
-                                    scaled = pix.scaledToWidth(target_w, QtCore.Qt.TransformationMode.SmoothTransformation)
-                                    self.thumb_label.setPixmap(scaled)
-                                else:
-                                    # Do not upscale small thumbnails to avoid fuzziness
-                                    # IMPORTANT: This line must be indented inside the else block above
-                                    self.thumb_label.setPixmap(pix)
-                            else:
-                                self.thumb_label.setStyleSheet('')
-                                self.thumb_label.setPixmap(QtGui.QPixmap())
-                        else:
-                            # Clear loading styles if download failed or no thumbnail found
-                            self.thumb_label.setStyleSheet('')
-                            self.thumb_label.setText('Thumbnail not found')
-                else:
-                    self.thumb_label.setText('')
-            except Exception:
-                self.thumb_label.setText('')
-            
-            # Now that thumbnail is loaded, show the tooltip for the latest price
-            # This prevents flickering - tooltip appears only after everything is ready
-            QtCore.QCoreApplication.processEvents()  # Ensure UI updates are processed
-            QtCore.QTimer.singleShot(100, self.chart._show_latest_tooltip)
-            
-            # Update trade panels to reflect newly selected item
-            self._refresh_trade_panels()
+        if self._selection_guard:
+            return
+        self._apply_selection_from_table_index(index, source='table', scroll=False)
 
     def _on_table_current_changed(self, current: QtCore.QModelIndex, prev: QtCore.QModelIndex) -> None:
-        # Mirror click handling for keyboard selection changes
-        self._on_table_clicked(current)
+        if self._selection_guard:
+            return
+        self._apply_selection_from_table_index(current, source='table', scroll=False)
 
     def _update_alerts(self) -> None:
         # Preserve current selection key
@@ -1740,60 +1957,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_top_stats()
 
     def _on_alert_clicked(self, item: QtWidgets.QListWidgetItem) -> None:
-        # Select the corresponding row in the table and update chart/thumbnail
+        if self._selection_guard:
+            return
         item_key = item.data(QtCore.Qt.UserRole)
         category = item.data(QtCore.Qt.UserRole + 1)
         if not item_key:
             return
-        
-        # Block ALL signals from table and selection model to prevent cascading triggers
-        table_blocker = QtCore.QSignalBlocker(self.table)
-        sel_model = self.table.selectionModel()
-        sel_blocker = QtCore.QSignalBlocker(sel_model) if sel_model else None
-        
-        target_row = -1
-        target_idx = None
-        
-        try:
-            # Make sure filters show the item: set category to alert's category and clear name/price filters
-            if category and self.category_cb.currentText() != category:
-                cb_blocker = QtCore.QSignalBlocker(self.category_cb)
-                self.category_cb.setCurrentText(category)
-                del cb_blocker
-            for w in (self.item_edit, self.price_min, self.price_max):
-                blk = QtCore.QSignalBlocker(w)
-                w.setText('')
-                del blk
-            
-            # Refresh view but skip auto-selection since we'll select the target row manually
-            self.refresh_view(skip_auto_selection=True)
-            
-            # Now find and select the row with this itemKey (signals still blocked)
-            m = self.table.model_
-            for r in range(m.rowCount()):
-                try:
-                    if m.item(r, 4).data(QtCore.Qt.UserRole) == item_key:  # itemKey stored in ma% column (4)
-                        target_row = r
-                        break
-                except Exception:
-                    continue
-            
-            if target_row >= 0:
-                idx = m.index(target_row, 0)  # Use column 0 for selection index
-                if idx.isValid():
-                    target_idx = idx
-                    # Select the row and scroll to it (signals still blocked)
-                    self.table.setCurrentIndex(idx)
-                    self.table.scrollTo(idx, QtWidgets.QAbstractItemView.PositionAtCenter)
-        finally:
-            # Unblock signals
-            del table_blocker
-            if sel_blocker:
-                del sel_blocker
-        
-        # Now manually update chart and thumbnail ONCE (signals are unblocked now)
-        if target_idx is not None:
-            self._on_table_clicked(target_idx)
+        if category and self.category_cb.currentText() != category:
+            cb_blocker = QtCore.QSignalBlocker(self.category_cb)
+            self.category_cb.setCurrentText(category)
+            del cb_blocker
+        for widget in (self.item_edit, self.price_min, self.price_max):
+            blk = QtCore.QSignalBlocker(widget)
+            widget.setText('')
+            del blk
+        self.refresh_view(skip_auto_selection=True)
+        index = self._find_table_index(item_key)
+        if index.isValid():
+            self._apply_selection_from_table_index(index, source='alerts', scroll=True)
+        else:
+            self._set_master_selection(item_key, source='alerts', table_index=None, scroll_table=False)
 
     def _on_alert_current_changed(self, current: QtWidgets.QListWidgetItem, prev: QtWidgets.QListWidgetItem) -> None:
         if current is not None:
@@ -2248,9 +2431,8 @@ def main() -> int:
                 traceback.print_exc()
                 # Try to show error - but keep loading screen open so app doesn't quit
                 try:
-                    QtWidgets.QMessageBox.critical(
-                        loading_screen, 
-                        'Error', 
+                    show_critical_dialog(
+                        loading_screen,
                         f'Failed to create main window:\n{e}\n\nCheck console for details.'
                     )
                 except:
