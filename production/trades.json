@@ -156,8 +156,8 @@
     "itemKey": "Instruments:Gimbal#030118383c1800000303316169310101874a0e",
     "quantity": 5,
     "expense": 143155.0,
-    "status": "4 - For Sale",
-    "income": 0.0,
+    "status": "5 - Sold",
+    "income": 241185.0,
     "tradeId": "cc7937d5-7444-40cd-8670-ef6750979d92",
     "createdAt": 1762466668152
   },
@@ -165,8 +165,8 @@
     "itemKey": "Instruments:Gimbal#030118383c1800000303316169310101874a0e",
     "quantity": 5,
     "expense": 154709.0,
-    "status": "4 - For Sale",
-    "income": 0.0,
+    "status": "5 - Sold",
+    "income": 241185.0,
     "tradeId": "62e7e5db-d92b-4e61-9133-e5092f3e9b7c",
     "createdAt": 1762466668151
   },
