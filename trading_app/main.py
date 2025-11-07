@@ -916,10 +916,16 @@ class MainWindow(QtWidgets.QMainWindow):
             lbl.setAlignment(QtCore.Qt.AlignCenter | QtCore.Qt.AlignVCenter)
             return lbl
         self.stat_expense = _make_stat_label('Total Expenses')
+        self.stat_expense.setToolTip('Money put in so far')
         self.stat_income = _make_stat_label('Total Income')
+        self.stat_income.setToolTip('Money made so far')
+        self.stat_net = _make_stat_label('Total Net')
+        self.stat_net.setToolTip('Current overall position (ahead/behind) including money tied up in active inventory')
         self.stat_gross = _make_stat_label('Total Gross')
+        self.stat_gross.setToolTip('Profit from completed trades only')
         self.stat_roi = _make_stat_label('Total ROI')
-        for w in (self.stat_expense, self.stat_income, self.stat_gross, self.stat_roi):
+        self.stat_roi.setToolTip('Return percentage on completed investments')
+        for w in (self.stat_expense, self.stat_income, self.stat_net, self.stat_gross, self.stat_roi):
             top_bar_layout.addWidget(w, 1)
         root_layout.addWidget(top_bar, 0)
         # Main row container (existing columns)
@@ -1106,14 +1112,27 @@ class MainWindow(QtWidgets.QMainWindow):
             trades = []
         total_expense = 0.0
         total_income = 0.0
+        completed_gross = 0.0
+        completed_expense = 0.0
         for t in trades:
             try:
-                total_expense += float(t.get('expense') or 0.0)
-                total_income += float(t.get('income') or 0.0)
+                expense = float(t.get('expense') or 0.0)
+                income = float(t.get('income') or 0.0)
+                total_expense += expense
+                total_income += income
+                # Calculate gross only from completed trades (status "5 - Sold")
+                # This matches what users see when adding up Gross from completed trade cards
+                if t.get('status') == '5 - Sold':
+                    completed_gross += income - expense
+                    completed_expense += expense
             except Exception:
                 continue
-        total_gross = total_income - total_expense
-        roi_pct = (total_gross / total_expense * 100.0) if total_expense > 0 else 0.0
+        # Use completed_gross for Total Gross to match individual trade cards
+        total_gross = completed_gross
+        # Total Net: overall position including active inventory (income - expenses for all trades)
+        total_net = total_income - total_expense
+        # ROI based on completed trades only
+        roi_pct = (total_gross / completed_expense * 100.0) if completed_expense > 0 else 0.0
         # Update labels with thousand separators, coloring only the numbers
         if hasattr(self, 'stat_expense'):
             expense_val = f"{total_expense:,.0f}"
@@ -1121,6 +1140,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if hasattr(self, 'stat_income'):
             income_val = f"{total_income:,.0f}"
             self.stat_income.setText(f'Total Income: <span style="color: #00ff88;">{income_val}</span>')
+        if hasattr(self, 'stat_net'):
+            net_val = f"{total_net:,.0f}"
+            net_color = '#00ff88' if total_net >= 0 else '#ff4444'
+            self.stat_net.setText(f'Total Net: <span style="color: {net_color};">{net_val}</span>')
         if hasattr(self, 'stat_gross'):
             gross_val = f"{total_gross:,.0f}"
             gross_color = '#00ff88' if total_gross >= 0 else '#ff4444'
