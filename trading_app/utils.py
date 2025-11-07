@@ -12,6 +12,11 @@ import pandas as pd
 import numpy as np
 
 
+class DataServiceUnavailable(Exception):
+    """Raised when the remote data service cannot be reached."""
+    pass
+
+
 def resource_path(relative_path: str) -> Path:
     """Get absolute path to resource, works for dev and PyInstaller."""
     if getattr(sys, 'frozen', False):
@@ -353,7 +358,12 @@ def load_s3_config() -> Optional[Dict[str, Any]]:
     return None
 
 
-def list_s3_snapshots(s3_config: Dict[str, Any], limit: Optional[int] = None) -> List[str]:
+def list_s3_snapshots(
+    s3_config: Dict[str, Any],
+    limit: Optional[int] = None,
+    *,
+    raise_on_error: bool = False,
+) -> List[str]:
     """List snapshot files from S3, sorted by modification time (newest first)."""
     try:
         import boto3
@@ -401,10 +411,17 @@ def list_s3_snapshots(s3_config: Dict[str, Any], limit: Optional[int] = None) ->
         return [f[0] for f in files]
     except Exception as e:
         print(f"[!] Error listing S3 snapshots: {e}")
+        if raise_on_error:
+            raise DataServiceUnavailable(str(e)) from e
         return []
 
 
-def load_snapshot_from_s3(s3_config: Dict[str, Any], filename: str) -> Optional[Dict[str, Any]]:
+def load_snapshot_from_s3(
+    s3_config: Dict[str, Any],
+    filename: str,
+    *,
+    raise_on_error: bool = False,
+) -> Optional[Dict[str, Any]]:
     """Load a snapshot file directly from S3 into memory (no disk caching)."""
     try:
         import boto3
@@ -437,6 +454,8 @@ def load_snapshot_from_s3(s3_config: Dict[str, Any], filename: str) -> Optional[
         return json.loads(content.decode('utf-8'))
     except Exception as e:
         print(f"[!] Error loading {filename} from S3: {e}")
+        if raise_on_error:
+            raise DataServiceUnavailable(str(e)) from e
         return None
 
 
@@ -516,13 +535,16 @@ def load_all_snapshots(local_path: str, limit: Optional[int] = None) -> List[Dic
     if s3_config and s3_config.get('use_s3'):
         try:
             # List S3 snapshots (already sorted newest first)
-            s3_files = list_s3_snapshots(s3_config, limit=limit)
+            s3_files = list_s3_snapshots(s3_config, limit=limit, raise_on_error=True)
             
             for filename in s3_files:
                 # Load snapshot directly from S3 into memory (no disk caching)
-                snap = load_snapshot_from_s3(s3_config, filename)
+                snap = load_snapshot_from_s3(s3_config, filename, raise_on_error=True)
                 if snap and isinstance(snap.get('categories', {}), dict):
                     result.append(snap)
+        except DataServiceUnavailable:
+            # Propagate so the caller can decide how to handle the failure
+            raise
         except Exception as e:
             print(f"[!] S3 load failed: {e}")
             # Don't fall back to local - if S3 is configured, we should use S3 only

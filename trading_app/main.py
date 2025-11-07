@@ -3,6 +3,7 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime, timezone
+from typing import Optional
 
 # Add parent directory to path for imports (must be before importing trading_app)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -812,7 +813,11 @@ class SnapshotLoader(QtCore.QThread):
                 self.progress.emit('Connecting...', 10)
                 try:
                     # List S3 snapshots (already sorted newest first)
-                    s3_files = utils.list_s3_snapshots(s3_config, limit=self.limit)
+                    s3_files = utils.list_s3_snapshots(
+                        s3_config,
+                        limit=self.limit,
+                        raise_on_error=True,
+                    )
                     total_files = len(s3_files)
                     
                     if total_files > 0:
@@ -825,7 +830,11 @@ class SnapshotLoader(QtCore.QThread):
                             # Remove .json extension from display
                             display_name = filename.replace('.json', '') if filename.endswith('.json') else filename
                             self.progress.emit(f'Loading {display_name}...', 15 + int((idx / total_files) * 60))
-                            snap = utils.load_snapshot_from_s3(s3_config, filename)
+                            snap = utils.load_snapshot_from_s3(
+                                s3_config,
+                                filename,
+                                raise_on_error=True,
+                            )
                             
                             if snap and isinstance(snap.get('categories', {}), dict):
                                 snapshots.append(snap)
@@ -838,6 +847,8 @@ class SnapshotLoader(QtCore.QThread):
                     else:
                         self.progress.emit('No snapshots found in S3', 50)
                         snapshots = []
+                except utils.DataServiceUnavailable:
+                    raise
                 except Exception as e:
                     self.progress.emit(f'S3 load failed, trying local files...', 50)
                     # Fall through to local loading
@@ -865,6 +876,8 @@ class SnapshotLoader(QtCore.QThread):
             self.progress.emit(f'Loaded {len(snapshots)} snapshots', 100)
             self.finished.emit(snapshots)
             
+        except utils.DataServiceUnavailable:
+            self.error.emit('Data service not available. Please try again later.')
         except Exception as e:
             self.error.emit(str(e))
 
@@ -2150,6 +2163,35 @@ class MainWindow(QtWidgets.QMainWindow):
 
 def main() -> int:
     app = QtWidgets.QApplication(sys.argv)
+
+    def show_critical_dialog(parent: Optional[QtWidgets.QWidget], message: str) -> None:
+        dialog = QtWidgets.QMessageBox(parent)
+        dialog.setIcon(QtWidgets.QMessageBox.Critical)
+        dialog.setWindowTitle('Error')
+        dialog.setText(message)
+        icon_candidates = [
+            resource_path('trading_app/icon.ico'),
+            resource_path('trading_app/icon.png'),
+        ]
+        for candidate in icon_candidates:
+            candidate_path = Path(candidate)
+            if candidate_path.exists():
+                icon = QtGui.QIcon(str(candidate_path))
+                if not icon.isNull():
+                    dialog.setWindowIcon(icon)
+                    break
+        dialog.exec()
+
+    # Ensure required user data files exist before continuing
+    required_files = ['trades.json', 'blacklist.json']
+    missing_files = [name for name in required_files if not utils.user_data_path(name).exists()]
+    if missing_files:
+        show_critical_dialog(
+            None,
+            'User data not found. Please locate trades.json and blacklist.json and make sure they are in the same directory as ABI_Trading_Platform.exe.',
+        )
+        return 1
+
     # Load config - works in both dev and PyInstaller bundle
     config_path = resource_path('trading_app/config.yaml')
     
@@ -2217,30 +2259,15 @@ def main() -> int:
                 loading_screen.update_status(f'Error: {str(e)}', None)
         
         def on_error(error_msg: str):
+            message = error_msg or 'Unexpected error while loading data.'
             try:
-                loading_screen.update_status(f'Error: {error_msg}', None)
-                # Still show main window with empty data after a delay
-                def show_main():
-                    try:
-                        # Create main window BEFORE closing loading screen
-                        main_window[0] = MainWindow(str(config_path), [])
-                        main_window[0].resize(1400, 700)
-                        main_window[0].show()
-                        loading_screen.close()
-                        main_window[0].raise_()
-                        main_window[0].activateWindow()
-                    except Exception as e:
-                        print(f"[!] Error creating main window after error: {e}")
-                        import traceback
-                        traceback.print_exc()
-                        # Keep loading screen open with error message
-                        loading_screen.update_status(f'Error: {error_msg} - Failed to create window: {e}', None)
-                QtCore.QTimer.singleShot(2000, show_main)
-            except Exception as e:
-                print(f"[!] Error in error handler: {e}")
-                import traceback
-                traceback.print_exc()
-                loading_screen.update_status(f'Fatal error: {str(e)}', None)
+                show_critical_dialog(loading_screen, message)
+            finally:
+                loading_screen.close()
+                loader.wait(0)
+                app_instance = QtWidgets.QApplication.instance()
+                if app_instance is not None:
+                    app_instance.exit(1)
         
         loader.progress.connect(on_progress)
         loader.finished.connect(on_finished)
@@ -2251,7 +2278,20 @@ def main() -> int:
         return app.exec()
     else:
         # Fast path: load snapshots synchronously (they're already cached)
-        snapshots = utils.load_all_snapshots(snapshots_path, limit=limit)
+        try:
+            snapshots = utils.load_all_snapshots(snapshots_path, limit=limit)
+        except utils.DataServiceUnavailable:
+            show_critical_dialog(
+                None,
+                'Data service not available. Please try again later.',
+            )
+            return 1
+        except Exception as exc:
+            show_critical_dialog(
+                None,
+                f'Failed to load data: {exc}',
+            )
+            return 1
         win = MainWindow(str(config_path), snapshots)
         win.resize(1400, 700)
         win.show()
