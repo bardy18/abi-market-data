@@ -557,6 +557,36 @@ header h1 {
     font-style: italic;
 }
 
+.download-warning {
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    background: rgba(255, 196, 0, 0.08);
+    border: 1px solid rgba(255, 196, 0, 0.35);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    text-align: left;
+    line-height: 1.55;
+}
+
+.download-warning h4 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+}
+
+.download-warning p {
+    margin-bottom: 0.75rem;
+}
+
+.download-warning ol {
+    margin: 0.5rem 0 1rem 1.25rem;
+    padding-left: 1rem;
+}
+
+.download-warning li {
+    margin-bottom: 0.35rem;
+}
+
 /* Update Instructions */
 .update-instructions {
     max-width: 700px;
