@@ -183,7 +183,7 @@
     "itemKey": "Electronics:Mobile Phone#01001818181800000303317131310101984e29",
     "quantity": 5,
     "expense": 49658.0,
-    "status": "1 - Purchased",
+    "status": "2 - In Transit",
     "income": 0.0,
     "tradeId": "550e8cc9-2af9-4312-bd82-65feb3ef09f9",
     "createdAt": 1762466668149
@@ -192,8 +192,8 @@
     "itemKey": "Computer Parts:Semiconductor Chip#0101081c3810000003031931715301018f4408",
     "quantity": 5,
     "expense": 50587.0,
-    "status": "4 - For Sale",
-    "income": 0.0,
+    "status": "5 - Sold",
+    "income": 64220.0,
     "tradeId": "8534e94f-fd4d-47ff-9418-cc23574fdce1",
     "createdAt": 1762466668148
   },
@@ -201,8 +201,8 @@
     "itemKey": "Building Materials:Wood Board#0100003e7e38000003030d79f94101011663bc",
     "quantity": 5,
     "expense": 67235.0,
-    "status": "4 - For Sale",
-    "income": 0.0,
+    "status": "5 - Sold",
+    "income": 87220.0,
     "tradeId": "3bc21731-810d-4080-b07c-d20916c427b6",
     "createdAt": 1762466668147
   },
