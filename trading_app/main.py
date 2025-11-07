@@ -960,6 +960,37 @@ class MainWindow(QtWidgets.QMainWindow):
         self.category_cb.addItem('All')
         for c in cats:
             self.category_cb.addItem(c)
+        self.category_cb.setStyleSheet('''
+            QComboBox {
+                background-color: #0a0a0a;
+                color: #c0c0c0;
+                border: 1px solid #333333;
+                padding: 2px 4px;
+            }
+            QComboBox::drop-down { border: none; }
+            QComboBox::down-arrow { image: none; }
+        ''')
+        self.category_cb.setItemDelegate(QtWidgets.QStyledItemDelegate(self.category_cb))
+        category_view = self.category_cb.view()
+        if isinstance(category_view, QtWidgets.QListView):
+            category_view.setStyleSheet('''
+                QListView {
+                    background-color: #0a0a0a;
+                    border: 1px solid #333333;
+                    padding: 0;
+                    outline: none;
+                }
+                QListView::item {
+                    padding: 4px 6px;
+                    background-color: #0a0a0a;
+                    color: #c0c0c0;
+                }
+                QListView::item:hover,
+                QListView::item:selected {
+                    background-color: #1a1a1a;
+                    color: #c0c0c0;
+                }
+            ''')
         left_layout.addWidget(QtWidgets.QLabel('Category'))
         left_layout.addWidget(self.category_cb)
 
@@ -2040,6 +2071,30 @@ class MainWindow(QtWidgets.QMainWindow):
             dlg.reject()
         btns.accepted.connect(accept)
         btns.rejected.connect(reject)
+        ok_btn = btns.button(QtWidgets.QDialogButtonBox.Ok)
+        if ok_btn is not None:
+            ok_btn.setText('Buy')
+
+        def is_valid_int(text: str) -> bool:
+            try:
+                return int(text.replace(',', '').strip()) > 0
+            except Exception:
+                return False
+
+        def is_valid_float(text: str) -> bool:
+            try:
+                float(text.replace(',', '').strip())
+                return True
+            except Exception:
+                return False
+
+        def update_ok_enabled() -> None:
+            if ok_btn is not None:
+                ok_btn.setEnabled(is_valid_int(qty_edit.text()) and is_valid_float(expense_edit.text()))
+
+        update_ok_enabled()
+        qty_edit.textChanged.connect(lambda _=None: update_ok_enabled())
+        expense_edit.textChanged.connect(lambda _=None: update_ok_enabled())
         ok = dlg.exec() == QtWidgets.QDialog.Accepted
         if not ok:
             return 0, 0.0, False
@@ -2054,6 +2109,51 @@ class MainWindow(QtWidgets.QMainWindow):
         if qty <= 0:
             return 0, 0.0, False
         return qty, expense, True
+
+    def _prompt_income_details(self) -> tuple[float, bool]:
+        """Show a dialog to capture total income for selling a trade."""
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle('Sell')
+        layout = QtWidgets.QFormLayout(dlg)
+        income_edit = QtWidgets.QLineEdit(dlg)
+        income_edit.setPlaceholderText('e.g. 12345')
+        btns = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel, parent=dlg)
+        layout.addRow('Total income', income_edit)
+        layout.addRow(btns)
+
+        def accept() -> None:
+            dlg.accept()
+
+        def reject() -> None:
+            dlg.reject()
+
+        btns.accepted.connect(accept)
+        btns.rejected.connect(reject)
+        ok_btn = btns.button(QtWidgets.QDialogButtonBox.Ok)
+        if ok_btn is not None:
+            ok_btn.setText('Sell')
+
+        def is_valid_float(text: str) -> bool:
+            try:
+                float(text.replace(',', '').strip())
+                return True
+            except Exception:
+                return False
+
+        def update_ok_enabled() -> None:
+            if ok_btn is not None:
+                ok_btn.setEnabled(is_valid_float(income_edit.text()))
+
+        update_ok_enabled()
+        income_edit.textChanged.connect(lambda _=None: update_ok_enabled())
+        ok = dlg.exec() == QtWidgets.QDialog.Accepted
+        if not ok:
+            return 0.0, False
+        try:
+            income = float(str(income_edit.text()).replace(',', '').strip())
+        except ValueError:
+            income = 0.0
+        return income, True
 
     def _build_trading_panel(self, main_layout: QtWidgets.QHBoxLayout) -> None:
         # Right column: Active Trades (top) and Completed Trades (bottom)
@@ -2457,13 +2557,9 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         item_key = trade.get('itemKey')
         trade_id = trade.get('tradeId')
-        income_text, ok = QtWidgets.QInputDialog.getText(self, 'Sell', 'Total income:')
+        income, ok = self._prompt_income_details()
         if not ok:
             return
-        try:
-            income = float(str(income_text).replace(',', '').strip())
-        except ValueError:
-            income = 0.0
         if item_key:
             utils.update_trade(item_key, {'income': income, 'status': '5 - Sold'}, trade_id=trade_id)
             self._refresh_trade_panels()
