@@ -1986,6 +1986,41 @@ class MainWindow(QtWidgets.QMainWindow):
         if utils.is_blacklisted(self._current_item_key):
             utils.remove_from_blacklist(self._current_item_key)
         else:
+            display_name = ''
+            try:
+                idx = self.table.currentIndex()
+                if idx.isValid():
+                    display_name = self.table.model_.item(idx.row(), 0).text()
+            except Exception:
+                display_name = ''
+            if not display_name:
+                try:
+                    display_name = utils.get_display_name(self._current_item_key)
+                except Exception:
+                    display_name = self._current_item_key
+            confirm = QtWidgets.QMessageBox(self)
+            confirm.setWindowTitle('Hide')
+            confirm.setText(
+                f'This will hide {display_name} from the trading app.\n'
+                'You can bring it back by removing it from blacklist.json.'
+            )
+            icon_candidates = [
+                resource_path('trading_app/icon.ico'),
+                resource_path('trading_app/icon.png'),
+            ]
+            for candidate in icon_candidates:
+                candidate_path = Path(candidate)
+                if candidate_path.exists():
+                    icon = QtGui.QIcon(str(candidate_path))
+                    if not icon.isNull():
+                        confirm.setWindowIcon(icon)
+                        break
+            confirm_button = confirm.addButton('Hide', QtWidgets.QMessageBox.AcceptRole)
+            confirm.addButton(QtWidgets.QMessageBox.Cancel)
+            confirm.setDefaultButton(confirm_button)
+            confirm.exec()
+            if confirm.clickedButton() is not confirm_button:
+                return
             utils.add_to_blacklist(self._current_item_key)
         self._update_blacklist_button_state()
         self._update_buy_button_state()
@@ -2058,7 +2093,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout = QtWidgets.QFormLayout(dlg)
         qty_edit = QtWidgets.QLineEdit(dlg)
         qty_edit.setPlaceholderText('e.g. 5')
-        qty_edit.setText('1')
+        qty_edit.setText('')
         expense_edit = QtWidgets.QLineEdit(dlg)
         expense_edit.setPlaceholderText('e.g. 12345')
         btns = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel, parent=dlg)
