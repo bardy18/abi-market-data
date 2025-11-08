@@ -250,23 +250,5 @@
     "income": 0.0,
     "tradeId": "042b748f-34c4-4ea9-b66c-4543d68b971b",
     "createdAt": 1762466668142
-  },
-  {
-    "itemKey": "Electronics:BP Machine#01001c3c3c18000003037969697901098f9a78",
-    "quantity": 5,
-    "expense": 16574.0,
-    "status": "2 - In Transit",
-    "income": 0.0,
-    "tradeId": "4b4b7812-fa40-4647-975c-7d89033b5b3b",
-    "createdAt": 1762466668141
-  },
-  {
-    "itemKey": "Collectibles:Handmade Hunting ...#0301000c3c0000000b03111971290101166e5d",
-    "quantity": 2,
-    "expense": 27004.0,
-    "status": "2 - In Transit",
-    "income": 0.0,
-    "tradeId": "7c378ea1-a1e8-40c3-8726-2379e9c3e219",
-    "createdAt": 1762466668140
   }
 ]
