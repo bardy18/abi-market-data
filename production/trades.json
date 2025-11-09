@@ -174,8 +174,8 @@
     "itemKey": "Electronics:Mobile Phone#01001818181800000303317131310101984e29",
     "quantity": 5,
     "expense": 32775.0,
-    "status": "1 - Purchased",
-    "income": 0.0,
+    "status": "5 - Sold",
+    "income": 56275.0,
     "tradeId": "3597b229-5da8-4e3d-aa8b-f841b940339b",
     "createdAt": 1762466668150
   },
@@ -183,8 +183,8 @@
     "itemKey": "Electronics:Mobile Phone#01001818181800000303317131310101984e29",
     "quantity": 5,
     "expense": 49658.0,
-    "status": "2 - In Transit",
-    "income": 0.0,
+    "status": "5 - Sold",
+    "income": 73665.0,
     "tradeId": "550e8cc9-2af9-4312-bd82-65feb3ef09f9",
     "createdAt": 1762466668149
   },
@@ -210,7 +210,7 @@
     "itemKey": "Electronics:Mobile Phone#01001818181800000303317131310101984e29",
     "quantity": 5,
     "expense": 31039.0,
-    "status": "2 - In Transit",
+    "status": "4 - For Sale",
     "income": 0.0,
     "tradeId": "bf143cd8-c9e0-4265-be9c-b486392383cb",
     "createdAt": 1762466668146
@@ -219,8 +219,8 @@
     "itemKey": "Miscellaneous Military Item:Weapon Parts#0301001c3c0000000303013d7121010140471e",
     "quantity": 5,
     "expense": 54053.0,
-    "status": "2 - In Transit",
-    "income": 0.0,
+    "status": "5 - Sold",
+    "income": 83575.0,
     "tradeId": "f3f58571-0d96-46e9-a294-35dd62ec3acb",
     "createdAt": 1762466668145
   },
@@ -228,7 +228,7 @@
     "itemKey": "Miscellaneous Military Item:Safety Cord#0101003c3c00000003030179610101011c8988",
     "quantity": 5,
     "expense": 28059.0,
-    "status": "2 - In Transit",
+    "status": "4 - For Sale",
     "income": 0,
     "tradeId": "2bcea809-4678-4501-93d9-a37bb3f34adf",
     "createdAt": 1762466668144
@@ -237,8 +237,8 @@
     "itemKey": "Electronics:Shutter Cable#03010018181800000b03112121210101924014",
     "quantity": 5,
     "expense": 33109.0,
-    "status": "2 - In Transit",
-    "income": 0.0,
+    "status": "5 - Sold",
+    "income": 69505.0,
     "tradeId": "cd81129d-331a-4235-8045-60658377e06f",
     "createdAt": 1762466668143
   },
@@ -246,8 +246,8 @@
     "itemKey": "Electronics:Mobile Phone#01001818181800000303317131310101984e29",
     "quantity": 5,
     "expense": 34745.0,
-    "status": "2 - In Transit",
-    "income": 0.0,
+    "status": "5 - Sold",
+    "income": 73665.0,
     "tradeId": "042b748f-34c4-4ea9-b66c-4543d68b971b",
     "createdAt": 1762466668142
   }
