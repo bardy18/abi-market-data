@@ -210,8 +210,8 @@
     "itemKey": "Electronics:Mobile Phone#01001818181800000303317131310101984e29",
     "quantity": 5,
     "expense": 31039.0,
-    "status": "4 - For Sale",
-    "income": 0.0,
+    "status": "5 - Sold",
+    "income": 73665.0,
     "tradeId": "bf143cd8-c9e0-4265-be9c-b486392383cb",
     "createdAt": 1762466668146
   },
@@ -228,8 +228,8 @@
     "itemKey": "Miscellaneous Military Item:Safety Cord#0101003c3c00000003030179610101011c8988",
     "quantity": 5,
     "expense": 28059.0,
-    "status": "4 - For Sale",
-    "income": 0,
+    "status": "5 - Sold",
+    "income": 71930.0,
     "tradeId": "2bcea809-4678-4501-93d9-a37bb3f34adf",
     "createdAt": 1762466668144
   },
