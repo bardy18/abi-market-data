@@ -30,6 +30,11 @@ def resource_path(relative_path: str) -> Path:
         return base_path / relative_path
 
 
+def is_running_local() -> bool:
+    """Return True when executing from source instead of a PyInstaller bundle."""
+    return not getattr(sys, 'frozen', False)
+
+
 def user_data_path(filename: str) -> Path:
     """Get path to user data file (trades.json, blacklist.json).
     
@@ -304,6 +309,9 @@ def load_config(path: str) -> TradingAppConfig:
 
 def load_s3_config() -> Optional[Dict[str, Any]]:
     """Load S3 configuration with priority: env vars > config file > embedded defaults."""
+    if is_running_local():
+        return None
+
     import os
     from pathlib import Path
     

@@ -1124,7 +1124,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.price_min.textChanged.connect(self._on_filter_changed)
         self.price_max.textChanged.connect(self._on_filter_changed)
         self.table.clicked.connect(self._on_table_clicked)
-        self.table.doubleClicked.connect(self._on_table_double_clicked)
+        self._allow_display_mapping_edits = utils.is_running_local()
+        if self._allow_display_mapping_edits:
+            self.table.doubleClicked.connect(self._on_table_double_clicked)
         # Update selection via keyboard navigation as well
         # Note: selectionModel is available after model is set in DataTable
         self.table.selectionModel().currentChanged.connect(self._on_table_current_changed)
@@ -2560,6 +2562,8 @@ class MainWindow(QtWidgets.QMainWindow):
         return QtGui.QIcon(pm)
 
     def _on_table_double_clicked(self, index: QtCore.QModelIndex) -> None:
+        if not getattr(self, '_allow_display_mapping_edits', False):
+            return
         model = self.table.model_
         if not index.isValid():
             return
