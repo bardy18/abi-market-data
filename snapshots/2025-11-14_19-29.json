@@ -276,9 +276,7 @@
         "itemName": ".338 Caliber FMJ Am...",
         "price": 9936,
         "thumbHash": "c1011818181800008303313131310101518f49"
-      }
-    ],
-    "7.62x3S9mm Ammo": [
+      },
       {
         "itemName": "7.62x39mm LP Ammo",
         "price": 52,
@@ -313,9 +311,7 @@
         "itemName": "7.62x39mm AP Ammo",
         "price": 7412,
         "thumbHash": "c100103c381800788303316171310149927262"
-      }
-    ],
-    "Sx3S9mm Ammo": [
+      },
       {
         "itemName": "9x39mm SP5 Ammo",
         "price": 210,
