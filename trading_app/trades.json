@@ -1,5 +1,32 @@
 [
   {
+    "itemKey": "Ammo:5.7x28mm SS198 A...#c101003c38180000830309616131010114793d",
+    "quantity": 35,
+    "expense": 234534.0,
+    "status": "1 - Purchased",
+    "income": 0.0,
+    "tradeId": "d84f2793-1879-476c-afed-20cc2f226180",
+    "createdAt": 1763168303767
+  },
+  {
+    "itemKey": "Ammo:5.7x28mm SS198 A...#c101003c38180000830309616131010114793d",
+    "quantity": 200,
+    "expense": 500000.0,
+    "status": "1 - Purchased",
+    "income": 0.0,
+    "tradeId": "ab870a10-391c-4a23-887b-c1ca9b25ae25",
+    "createdAt": 1763168211790
+  },
+  {
+    "itemKey": "Building Materials:Brass Pipe#010818181818180047333131313131011ea984",
+    "quantity": 6,
+    "expense": 2342234.0,
+    "status": "1 - Purchased",
+    "income": 0.0,
+    "tradeId": "ac1c52a5-3f1c-49b5-ba2d-6ea70bab8a12",
+    "createdAt": 1763168120330
+  },
+  {
     "itemKey": "Household Items:Kamona Bird Plush#010118381c1c000003033161312101011c6649",
     "quantity": 1,
     "expense": 2345234.0,

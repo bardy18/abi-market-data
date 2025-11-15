@@ -4,7 +4,7 @@ import sys
 import json
 import uuid
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
 from pathlib import Path
 
 import yaml
@@ -710,43 +710,68 @@ def find_top_volatility(df: pd.DataFrame, top_n: int = 10) -> List[Dict[str, Any
 
 def find_trades_items(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """Return active trades with MA delta like alerts for the left widget.
-    Sorted with biggest gainers at the top (descending by delta)."""
+    Sorted with biggest gainers at the top (descending by delta).
+    
+    Ensures we always show every active trade even if the historical dataframe is missing
+    rows for that item (fall back to flat text in that case).
+    """
     out: List[Dict[str, Any]] = []
-    if df.empty:
+    trades = list_active_trades()
+    if not trades:
         return out
-    trade_keys = {t.get('itemKey') for t in list_active_trades()}
-    if not trade_keys:
-        return out
-    # Filter out blacklisted items first
+    unique_trades: List[Dict[str, Any]] = []
+    seen_keys: Set[str] = set()
+    for trade in trades:
+        key = trade.get('itemKey', '')
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        unique_trades.append(trade)
+    latest_map: Dict[str, Dict[str, Any]] = {}
+    if df is not None and not df.empty and 'itemKey' in df.columns:
+        df_latest = df
+        if 'epoch' in df.columns:
+            df_latest = df_latest.sort_values(['itemKey', 'epoch'])
+        elif 'timestamp' in df.columns:
+            df_latest = df_latest.sort_values(['itemKey', 'timestamp'])
+        latest = df_latest.groupby('itemKey').tail(1).copy()
+        latest_map = latest.set_index('itemKey').to_dict('index')
     blacklisted_keys = set(load_blacklist())
-    if blacklisted_keys and 'itemKey' in df.columns:
-        df = df[~df['itemKey'].isin(blacklisted_keys)]
-    latest = df.groupby('itemKey').tail(1).copy()
-    latest = latest[latest['itemKey'].isin(trade_keys)]
-    if latest.empty:
-        return out
-    for _, row in latest.iterrows():
-        price = row['price']
-        ma = row.get('ma', np.nan)
-        disp_name = row.get('displayName', row.get('itemName', ''))
-        if not np.isnan(ma) and ma > 0:
-            delta_pct = (price - ma) / ma * 100.0
-            ttype = 'spike' if delta_pct >= 0.1 else ('drop' if delta_pct <= -0.1 else 'flat')
-            out.append({
-                'type': ttype,
-                'text': f"{disp_name} {delta_pct:+.0f}%",
-                'delta': float(delta_pct),
-                'itemKey': row['itemKey'],
-                'category': row['category'],
-            })
+    for trade in unique_trades:
+        key = trade.get('itemKey', '')
+        if not key or key in blacklisted_keys:
+            continue
+        row = latest_map.get(key)
+        category = ''
+        disp_name = ''
+        delta_pct = 0.0
+        trade_type = 'flat'
+        text = ''
+        if row is not None:
+            category = row.get('category', '')
+            disp_name = row.get('displayName', row.get('itemName', key))
+            price = float(row.get('price', np.nan))
+            ma = float(row.get('ma', np.nan))
+            if not np.isnan(ma) and ma > 0 and not np.isnan(price):
+                delta_pct = (price - ma) / ma * 100.0
+                if delta_pct >= 0.1:
+                    trade_type = 'spike'
+                elif delta_pct <= -0.1:
+                    trade_type = 'drop'
+                text = f"{disp_name} {delta_pct:+.0f}%"
+            else:
+                text = disp_name
         else:
-            out.append({
-                'type': 'flat',
-                'text': disp_name,
-                'delta': 0.0,
-                'itemKey': row['itemKey'],
-                'category': row['category'],
-            })
+            disp_name = get_display_name(key)
+            category = key.split(':', 1)[0] if ':' in key else ''
+            text = disp_name
+        out.append({
+            'type': trade_type,
+            'text': text,
+            'delta': float(delta_pct),
+            'itemKey': key,
+            'category': category,
+        })
     out.sort(key=lambda x: x.get('delta', 0.0), reverse=True)
     return out
 

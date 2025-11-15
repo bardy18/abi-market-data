@@ -3,7 +3,7 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Set
 
 # Add parent directory to path for imports (must be before importing trading_app)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1355,6 +1355,34 @@ class MainWindow(QtWidgets.QMainWindow):
                 pass
         return df
 
+    def _filters_active(self) -> bool:
+        category_active = bool(self.category_cb.currentText() and self.category_cb.currentText() != 'All')
+        text_active = bool(self.item_edit.text().strip())
+        min_active = bool(self.price_min.text().strip())
+        max_active = bool(self.price_max.text().strip())
+        return category_active or text_active or min_active or max_active
+
+    def _filtered_item_keys(self) -> Set[str]:
+        df = self._filtered_df()
+        if df.empty:
+            return set()
+        key_col = 'itemKey' if 'itemKey' in df.columns else 'itemName'
+        if key_col not in df.columns:
+            return set()
+        keys = df[key_col].dropna().astype(str).unique()
+        return set(keys)
+
+    def _df_for_widget_filters(self) -> pd.DataFrame:
+        df = self.df_all
+        if df.empty:
+            return df
+        if 'itemKey' not in df.columns:
+            return df
+        keys = self._filtered_item_keys()
+        if not keys:
+            return df if not self._filters_active() else df.iloc[0:0]
+        return df[df['itemKey'].isin(keys)]
+
     def _latest_per_item(self, df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
             return df
@@ -1587,18 +1615,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 display_name = model.item(row, 0).text()
             except Exception:
                 pass
-        df_full = self._filtered_df()
+        df_chart = self.df_all
         if item_key:
-            self.chart.plot(df_full, item_key, display_name)
+            self.chart.plot(df_chart, item_key, display_name)
         else:
-            self.chart.plot(df_full, display_name, display_name)
+            self.chart.plot(df_chart, display_name, display_name)
         try:
             self.thumb_label.setText('')
-            if not df_full.empty and item_key:
-                if 'itemKey' in df_full.columns:
-                    dfi = df_full[df_full['itemKey'] == item_key]
+            if not df_chart.empty and item_key:
+                if 'itemKey' in df_chart.columns:
+                    dfi = df_chart[df_chart['itemKey'] == item_key]
                 else:
-                    dfi = df_full[df_full['itemName'] == display_name]
+                    dfi = df_chart[df_chart['itemName'] == display_name]
                 if not dfi.empty:
                     cand = []
                     if 'thumbPath' in dfi.columns:
@@ -1803,8 +1831,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 prev_key = ''
         blocker = QtCore.QSignalBlocker(self.alerts_list)
         self.alerts_list.clear()
+        df_alert_source = self._df_for_widget_filters()
         alerts = utils.find_alerts(
-            self.df_all,
+            df_alert_source,
             spike_pct=float(self.cfg.alerts.get('spike_threshold_pct', 20.0)),
             drop_pct=float(self.cfg.alerts.get('drop_threshold_pct', 20.0)),
         )
