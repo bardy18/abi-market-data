@@ -93,6 +93,8 @@ header h1 {
     transition: all 0.3s ease;
     border: 2px solid transparent;
     cursor: pointer;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .btn-primary {
@@ -122,6 +124,8 @@ header h1 {
 .btn-large {
     padding: 1.2rem 3rem;
     font-size: 1.1rem;
+    white-space: normal;
+    max-width: 100%;
 }
 
 /* Features Section */
@@ -322,7 +326,7 @@ header h1 {
         transform: rotate(90deg);
         margin: 0.5rem 0;
     }
-    
+
     .loop-container {
         flex-direction: column;
     }
@@ -394,11 +398,11 @@ header h1 {
     .theory-content {
         grid-template-columns: 1fr;
     }
-    
+
     .theory-chart-container {
         order: 2;
     }
-    
+
     .theory-explanation {
         order: 1;
     }
@@ -512,6 +516,9 @@ header h1 {
     border: 2px solid var(--primary-color);
     text-align: center;
     box-shadow: 0 0 40px var(--accent-glow);
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    overflow: hidden;
 }
 
 .download-card h3 {
@@ -566,6 +573,8 @@ header h1 {
     color: var(--text-secondary);
     text-align: left;
     line-height: 1.55;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
 }
 
 .download-warning h4 {
@@ -840,6 +849,15 @@ footer p {
     .tencent-message {
         padding: 2rem;
     }
+
+    .download-card {
+        padding: 2rem 1.5rem;
+    }
+
+    .btn-large {
+        padding: 1rem 1.5rem;
+        font-size: 1rem;
+    }
 }
 
 /* Smooth scrolling */
@@ -852,4 +870,3 @@ html {
     background: var(--primary-color);
     color: var(--bg-dark);
 }
-
