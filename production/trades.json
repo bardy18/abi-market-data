@@ -1,5 +1,14 @@
 [
   {
+    "itemKey": "Miscellaneous Medical Item:Bios.#0100183c3c180000030331717131010197bc4f",
+    "quantity": 30,
+    "expense": 330000.0,
+    "status": "1 - Purchased",
+    "income": 0.0,
+    "tradeId": "f32959ed-4398-433c-8ecb-8c2e9f4836c6",
+    "createdAt": 1764185973015
+  },
+  {
     "itemKey": "Electronics:Shutter Cable#03010018181800000b03112121210101924014",
     "quantity": 75,
     "expense": 571994.0,
